@@ -13,7 +13,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Workout Tracker</title>
-<meta name="app-version" content="1.01">
+<meta name="app-version" content="1.02">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
@@ -958,7 +958,7 @@ select {
         Your data is private. Only you can access it.
       </div>
       <div style="text-align:center; font-size:10px; color:var(--text-faint); margin-top:6px; opacity:0.7;">
-        v1.01
+        v1.02
       </div>
     </div>
   </div>
@@ -1054,6 +1054,7 @@ select {
             <option value="Dumbbell">Dumbbell</option>
             <option value="Cable">Cable</option>
             <option value="Body Weight">Body Weight</option>
+            <option value="Machine">Machine</option>
           </select>
         </div>
         <input type="search" id="searchExercise" class="search-input" placeholder="Search by name…">
@@ -1128,6 +1129,7 @@ select {
           <option value="Dumbbell">Dumbbell</option>
           <option value="Cable">Cable</option>
           <option value="Body Weight">Body Weight</option>
+            <option value="Machine">Machine</option>
         </select>
       </div>
     </div>
@@ -1158,6 +1160,7 @@ select {
             <option value="Dumbbell">Dumbbell</option>
             <option value="Cable">Cable</option>
             <option value="Body Weight">Body Weight</option>
+            <option value="Machine">Machine</option>
           </select>
         </div>
 
@@ -1457,6 +1460,7 @@ select {
           <option value="Dumbbell">Dumbbell</option>
           <option value="Cable">Cable</option>
           <option value="Body Weight">Body Weight</option>
+            <option value="Machine">Machine</option>
         </select>
       </div>
       <input type="search" id="libSearch" class="search-input" style="margin-top:10px;" placeholder="Search by name…">
@@ -1534,7 +1538,7 @@ select {
 
     <!-- VERSION FOOTER -->
     <div style="text-align:center; padding:16px 0; font-size:11px; color:var(--text-faint);">
-      Workout Tracker v1.01
+      Workout Tracker v1.02
     </div>
 
   </section>
@@ -1664,59 +1668,59 @@ select {
 // ============================================================
 const EXERCISES = [
   // ===== CHEST =====
-  { id: 'bench-press', image: 'Barbell_Bench_Press_-_Medium_Grip', name: 'Bench Press', bodyPart: 'Chest', type: 'Bar',
+  { id: 'bench-press', slug: 'chest/barbell-bench-press', image: 'Barbell_Bench_Press_-_Medium_Grip', name: 'Bench Press', bodyPart: 'Chest', type: 'Bar',
     desc: 'Lie flat on bench. Grip bar slightly wider than shoulders. Lower to mid-chest, press up to full extension.' },
   { id: 'incline-bench-press', image: 'Barbell_Incline_Bench_Press_-_Medium_Grip', name: 'Incline Bench Press', bodyPart: 'Chest', type: 'Bar',
     desc: 'Bench set to 30-45°. Same form as flat bench. Targets upper chest.' },
   { id: 'decline-bench-press', image: 'Decline_Barbell_Bench_Press', name: 'Decline Bench Press', bodyPart: 'Chest', type: 'Bar',
     desc: 'Bench declined. Lower bar to lower chest. Emphasizes lower pec fibers.' },
-  { id: 'close-grip-bench', image: 'Close-Grip_Barbell_Bench_Press', name: 'Close Grip Bench Press', bodyPart: 'Chest', type: 'Bar',
+  { id: 'close-grip-bench', slug: 'triceps/close-grip-bench-press', image: 'Close-Grip_Barbell_Bench_Press', name: 'Close Grip Bench Press', bodyPart: 'Chest', type: 'Bar',
     desc: 'Hands shoulder-width. Tuck elbows. Hits inner chest and triceps heavily.' },
-  { id: 'db-bench-press', image: 'Dumbbell_Bench_Press', name: 'Dumbbell Bench Press', bodyPart: 'Chest', type: 'Dumbbell',
+  { id: 'db-bench-press', slug: 'chest/dumbbell-bench-press', image: 'Dumbbell_Bench_Press', name: 'Dumbbell Bench Press', bodyPart: 'Chest', type: 'Dumbbell',
     desc: 'Lie flat with dumbbells at chest level. Press up until arms extend, lower with control.' },
-  { id: 'db-incline-press', image: 'Dumbbell_Bench_Press_with_Neutral_Grip', name: 'Dumbbell Incline Press', bodyPart: 'Chest', type: 'Dumbbell',
+  { id: 'db-incline-press', slug: 'chest/dumbbell-incline-press', image: 'Dumbbell_Bench_Press_with_Neutral_Grip', name: 'Dumbbell Incline Press', bodyPart: 'Chest', type: 'Dumbbell',
     desc: 'Incline bench 30-45°. Press dumbbells overhead. Greater range of motion than barbell.' },
   { id: 'db-decline-press', image: 'Decline_Dumbbell_Bench_Press', name: 'Dumbbell Decline Press', bodyPart: 'Chest', type: 'Dumbbell',
     desc: 'Decline bench. Press dumbbells from lower-chest level upward. Lower pec emphasis.' },
-  { id: 'db-fly', image: 'Dumbbell_Flyes', name: 'Dumbbell Fly', bodyPart: 'Chest', type: 'Dumbbell',
+  { id: 'db-fly', slug: 'chest/dumbbell-fly', image: 'Dumbbell_Flyes', name: 'Dumbbell Fly', bodyPart: 'Chest', type: 'Dumbbell',
     desc: 'Lie flat, arms extended above chest with slight bend. Lower arms out wide, squeeze chest to bring back up.' },
   { id: 'db-incline-fly', image: 'Crucifix', name: 'Incline Dumbbell Fly', bodyPart: 'Chest', type: 'Dumbbell',
     desc: 'Incline bench. Arms slightly bent. Open arms in wide arc, squeeze upper chest on return.' },
   { id: 'db-pullover', image: 'Bent-Arm_Dumbbell_Pullover', name: 'Dumbbell Pullover', bodyPart: 'Chest', type: 'Dumbbell',
     desc: 'Lie flat, hold one dumbbell above chest. Lower behind head with slight arm bend, pull back over chest.' },
-  { id: 'cable-fly', image: 'Cable_Crossover', name: 'Cable Fly', bodyPart: 'Chest', type: 'Cable',
+  { id: 'cable-fly', slug: 'chest/cable-fly', image: 'Cable_Crossover', name: 'Cable Fly', bodyPart: 'Chest', type: 'Cable',
     desc: 'Stand between cables. Arms slightly bent. Bring handles together in front of chest with controlled squeeze.' },
   { id: 'cable-crossover-high', image: 'Cable_Iron_Cross', name: 'High-to-Low Cable Crossover', bodyPart: 'Chest', type: 'Cable',
     desc: 'Cables at high setting. Pull handles down and across in front of body. Lower chest focus.' },
   { id: 'cable-crossover-low', image: 'Cable_Chest_Press', name: 'Low-to-High Cable Crossover', bodyPart: 'Chest', type: 'Cable',
     desc: 'Cables at low setting. Pull up and across. Upper chest focus.' },
-  { id: 'cable-chest-press', image: 'Cable_Chest_Press', name: 'Cable Chest Press', bodyPart: 'Chest', type: 'Cable',
+  { id: 'cable-chest-press', slug: 'chest/cable-chest-press', image: 'Cable_Chest_Press', name: 'Cable Chest Press', bodyPart: 'Chest', type: 'Cable',
     desc: 'Stand facing away from pulley. Press handles forward at chest height with constant tension.' },
-  { id: 'push-up', image: 'Bodyweight_Flyes', name: 'Push-Up', bodyPart: 'Chest', type: 'Body Weight',
+  { id: 'push-up', slug: 'chest/push-up', image: 'Bodyweight_Flyes', name: 'Push-Up', bodyPart: 'Chest', type: 'Body Weight',
     desc: 'Plank position, hands shoulder-width. Lower chest to floor, press back up. Keep core tight.' },
-  { id: 'incline-push-up', image: 'Body_Tricep_Press', name: 'Incline Push-Up', bodyPart: 'Chest', type: 'Body Weight',
+  { id: 'incline-push-up', slug: 'chest/incline-push-up', image: 'Body_Tricep_Press', name: 'Incline Push-Up', bodyPart: 'Chest', type: 'Body Weight',
     desc: 'Hands elevated on bench. Easier than standard, hits lower chest emphasis.' },
-  { id: 'decline-push-up', image: 'Decline_Smith_Press', name: 'Decline Push-Up', bodyPart: 'Chest', type: 'Body Weight',
+  { id: 'decline-push-up', slug: 'chest/decline-push-up', image: 'Decline_Smith_Press', name: 'Decline Push-Up', bodyPart: 'Chest', type: 'Body Weight',
     desc: 'Feet elevated, hands on floor. Harder than standard. Upper chest focus.' },
-  { id: 'dip', image: 'Dips_-_Chest_Version', name: 'Chest Dip', bodyPart: 'Chest', type: 'Body Weight',
+  { id: 'dip', slug: 'chest/chest-dip', image: 'Dips_-_Chest_Version', name: 'Chest Dip', bodyPart: 'Chest', type: 'Body Weight',
     desc: 'Support on parallel bars. Lean forward, lower until shoulders below elbows, press back up.' },
 
   // ===== BACK =====
-  { id: 'deadlift', image: 'Barbell_Deadlift', name: 'Conventional Deadlift', bodyPart: 'Back', type: 'Bar',
+  { id: 'deadlift', slug: 'lats/barbell-deadlift', image: 'Barbell_Deadlift', name: 'Conventional Deadlift', bodyPart: 'Back', type: 'Bar',
     desc: 'Bar over mid-foot. Hinge at hips, grip bar. Stand up driving through heels, keep back neutral.' },
   { id: 'sumo-deadlift', image: 'Deficit_Deadlift', name: 'Sumo Deadlift', bodyPart: 'Back', type: 'Bar',
     desc: 'Wide stance, hands inside knees. Drive through heels. Reduced lower-back stress, more quad/glute.' },
   { id: 'romanian-deadlift', image: 'Dumbbell_Deadlift', name: 'Romanian Deadlift', bodyPart: 'Back', type: 'Bar',
     desc: 'Bar at hips. Hinge with slight knee bend, push hips back, lower bar along legs to mid-shin.' },
-  { id: 'bent-over-row', image: 'Bent_Over_Barbell_Row', name: 'Bent Over Row', bodyPart: 'Back', type: 'Bar',
+  { id: 'bent-over-row', slug: 'lats/barbell-bent-over-row', image: 'Bent_Over_Barbell_Row', name: 'Bent Over Row', bodyPart: 'Back', type: 'Bar',
     desc: 'Hinge at hips, back flat. Pull bar to lower chest, squeeze shoulder blades. Lower with control.' },
-  { id: 'pendlay-row', image: 'Bent_Over_Barbell_Row', name: 'Pendlay Row', bodyPart: 'Back', type: 'Bar',
+  { id: 'pendlay-row', slug: 'lats/pendlay-row', image: 'Bent_Over_Barbell_Row', name: 'Pendlay Row', bodyPart: 'Back', type: 'Bar',
     desc: 'Bar starts on floor each rep. Explosive pull to chest, fully reset. Powerful back builder.' },
-  { id: 't-bar-row', image: 'Bent_Over_Two-Arm_Long_Bar_Row', name: 'T-Bar Row', bodyPart: 'Back', type: 'Bar',
+  { id: 't-bar-row', slug: 'lats/t-bar-row', image: 'Bent_Over_Two-Arm_Long_Bar_Row', name: 'T-Bar Row', bodyPart: 'Back', type: 'Bar',
     desc: 'Bar anchored at one end. Straddle, hinge over, pull handle to chest. Squeeze mid-back.' },
   { id: 'barbell-shrug', image: 'Barbell_Shrug', name: 'Barbell Shrug', bodyPart: 'Back', type: 'Bar',
     desc: 'Bar held at hips. Shrug shoulders straight up toward ears, squeeze traps, lower with control.' },
-  { id: 'db-row', image: 'Bent_Over_Two-Dumbbell_Row', name: 'Dumbbell Row', bodyPart: 'Back', type: 'Dumbbell',
+  { id: 'db-row', slug: 'lats/dumbbell-row', image: 'Bent_Over_Two-Dumbbell_Row', name: 'Dumbbell Row', bodyPart: 'Back', type: 'Dumbbell',
     desc: 'One knee on bench, opposite hand holding dumbbell. Pull elbow up alongside body, squeeze back.' },
   { id: 'db-chest-supported-row', image: 'Dumbbell_Incline_Row', name: 'Chest Supported Row', bodyPart: 'Back', type: 'Dumbbell',
     desc: 'Lie face-down on incline bench. Row dumbbells with no lower-back stress. Pure back work.' },
@@ -1724,31 +1728,31 @@ const EXERCISES = [
     desc: 'Dumbbells at sides. Shrug shoulders to ears, hold, lower. Direct trap stimulus.' },
   { id: 'db-pullover-back', image: 'Bent-Arm_Barbell_Pullover', name: 'Dumbbell Pullover (Lats)', bodyPart: 'Back', type: 'Dumbbell',
     desc: 'Lie across bench. Hold dumbbell overhead, lower behind head feeling lat stretch, pull back up.' },
-  { id: 'lat-pulldown', image: 'Close-Grip_Front_Lat_Pulldown', name: 'Lat Pulldown', bodyPart: 'Back', type: 'Cable',
+  { id: 'lat-pulldown', slug: 'lats/lat-pulldown', image: 'Close-Grip_Front_Lat_Pulldown', name: 'Lat Pulldown', bodyPart: 'Back', type: 'Cable',
     desc: 'Sit with knees secured. Grip bar wider than shoulders. Pull to upper chest, squeeze lats.' },
   { id: 'close-grip-pulldown', image: 'Close-Grip_Front_Lat_Pulldown', name: 'Close Grip Pulldown', bodyPart: 'Back', type: 'Cable',
     desc: 'V-handle attachment, palms facing each other. Pull to chest. Hits lower lats heavily.' },
   { id: 'straight-arm-pulldown', image: 'Cable_Incline_Pushdown', name: 'Straight Arm Pulldown', bodyPart: 'Back', type: 'Cable',
     desc: 'Stand facing cable, bar at high pulley. Arms straight, pull bar down to thighs. Isolates lats.' },
-  { id: 'cable-row', image: 'Elevated_Cable_Rows', name: 'Seated Cable Row', bodyPart: 'Back', type: 'Cable',
+  { id: 'cable-row', slug: 'lats/seated-cable-row', image: 'Elevated_Cable_Rows', name: 'Seated Cable Row', bodyPart: 'Back', type: 'Cable',
     desc: 'Seated, knees slightly bent. Pull handle to abdomen, drive elbows back, squeeze shoulder blades.' },
   { id: 'cable-shrug', image: 'Cable_Shrugs', name: 'Cable Shrug', bodyPart: 'Back', type: 'Cable',
     desc: 'Stand at low cable with bar. Shrug shoulders up, hold briefly, lower. Constant tension on traps.' },
-  { id: 'pull-up', image: 'Body-Up', name: 'Pull-Up', bodyPart: 'Back', type: 'Body Weight',
+  { id: 'pull-up', slug: 'lats/pull-up', image: 'Body-Up', name: 'Pull-Up', bodyPart: 'Back', type: 'Body Weight',
     desc: 'Hang from bar, palms forward. Pull chin over bar by driving elbows down. Control descent.' },
-  { id: 'chin-up', image: 'Chin-Up', name: 'Chin-Up', bodyPart: 'Back', type: 'Body Weight',
+  { id: 'chin-up', slug: 'biceps/chin-up', image: 'Chin-Up', name: 'Chin-Up', bodyPart: 'Back', type: 'Body Weight',
     desc: 'Hang from bar, palms facing you. Pull chin over bar. Targets biceps and lats.' },
   { id: 'inverted-row', image: 'Bodyweight_Mid_Row', name: 'Inverted Row', bodyPart: 'Back', type: 'Body Weight',
     desc: 'Bar at waist height. Hang under bar, body straight, pull chest to bar. Beginner-friendly row.' },
 
   // ===== LEGS =====
-  { id: 'back-squat', image: 'Barbell_Squat', name: 'Back Squat', bodyPart: 'Legs', type: 'Bar',
+  { id: 'back-squat', slug: 'quadriceps/barbell-squat', image: 'Barbell_Squat', name: 'Back Squat', bodyPart: 'Legs', type: 'Bar',
     desc: 'Bar on upper traps. Feet shoulder-width. Squat down with chest up until thighs parallel, drive up.' },
-  { id: 'front-squat', image: 'Barbell_Full_Squat', name: 'Front Squat', bodyPart: 'Legs', type: 'Bar',
+  { id: 'front-squat', slug: 'quadriceps/front-squat', image: 'Barbell_Full_Squat', name: 'Front Squat', bodyPart: 'Legs', type: 'Bar',
     desc: 'Bar on front delts, elbows high. Squat keeping torso upright. Targets quads heavily.' },
   { id: 'box-squat', image: 'Box_Squat', name: 'Box Squat', bodyPart: 'Legs', type: 'Bar',
     desc: 'Squat down to box, briefly sit, drive up. Teaches depth and explosive power.' },
-  { id: 'hip-thrust', image: 'Barbell_Hip_Thrust', name: 'Barbell Hip Thrust', bodyPart: 'Legs', type: 'Bar',
+  { id: 'hip-thrust', slug: 'glutes/barbell-hip-thrust', image: 'Barbell_Hip_Thrust', name: 'Barbell Hip Thrust', bodyPart: 'Hips', type: 'Bar',
     desc: 'Upper back on bench, bar across hips. Drive hips up squeezing glutes, lower with control.' },
   { id: 'good-morning', image: 'Band_Good_Morning', name: 'Good Morning', bodyPart: 'Legs', type: 'Bar',
     desc: 'Bar on traps. Hinge forward keeping back flat until torso nearly parallel. Stand back up.' },
@@ -1756,9 +1760,9 @@ const EXERCISES = [
     desc: 'Bar on upper traps. Step forward, lower until both knees at 90°. Push back. Alternate legs.' },
   { id: 'bulgarian-split-squat-bar', image: 'Barbell_Side_Split_Squat', name: 'Bulgarian Split Squat', bodyPart: 'Legs', type: 'Bar',
     desc: 'Rear foot elevated on bench. Bar on traps. Lower into deep lunge, drive up. Brutal unilateral leg builder.' },
-  { id: 'db-lunge', image: 'Dumbbell_Lunges', name: 'Dumbbell Lunge', bodyPart: 'Legs', type: 'Dumbbell',
+  { id: 'db-lunge', slug: 'quadriceps/dumbbell-lunge', image: 'Dumbbell_Lunges', name: 'Dumbbell Lunge', bodyPart: 'Legs', type: 'Dumbbell',
     desc: 'Dumbbells at sides. Step forward, lower until both knees at 90°. Push back to start. Alternate legs.' },
-  { id: 'goblet-squat', image: 'Dumbbell_Squat', name: 'Goblet Squat', bodyPart: 'Legs', type: 'Dumbbell',
+  { id: 'goblet-squat', slug: 'quadriceps/goblet-squat', image: 'Dumbbell_Squat', name: 'Goblet Squat', bodyPart: 'Legs', type: 'Dumbbell',
     desc: 'Hold dumbbell vertically at chest. Squat down keeping torso upright, drive up through heels.' },
   { id: 'db-rdl', image: 'Dumbbell_Deadlift', name: 'Dumbbell Romanian Deadlift', bodyPart: 'Legs', type: 'Dumbbell',
     desc: 'Dumbbells in front of thighs. Hinge at hips with slight knee bend, lower along legs, feel hamstring stretch.' },
@@ -1766,23 +1770,106 @@ const EXERCISES = [
     desc: 'Dumbbells at sides. Step up onto bench/box driving through heel. Step down with control.' },
   { id: 'db-calf-raise', image: 'Dumbbell_Seated_One-Leg_Calf_Raise', name: 'Dumbbell Calf Raise', bodyPart: 'Legs', type: 'Dumbbell',
     desc: 'Dumbbells at sides. Rise up onto toes as high as possible, squeeze calves, lower slowly.' },
-  { id: 'leg-curl', image: 'Ball_Leg_Curl', name: 'Lying Leg Curl', bodyPart: 'Legs', type: 'Cable',
+  { id: 'leg-curl', slug: 'hamstrings/lying-leg-curl', image: 'Ball_Leg_Curl', name: 'Lying Leg Curl', bodyPart: 'Legs', type: 'Machine',
     desc: 'On machine, ankle pad on Achilles. Curl heels toward glutes, squeeze hamstrings, control return.' },
-  { id: 'leg-extension', image: 'Calf_Press', name: 'Leg Extension', bodyPart: 'Legs', type: 'Cable',
+  { id: 'leg-extension', slug: 'quadriceps/leg-extension', image: 'Calf_Press', name: 'Leg Extension', bodyPart: 'Legs', type: 'Machine',
     desc: 'Sit on machine with pad above ankles. Extend legs fully, squeeze quads, lower with control.' },
-  { id: 'cable-pull-through', image: 'Cable_Deadlifts', name: 'Cable Pull-Through', bodyPart: 'Legs', type: 'Cable',
+  // === MACHINE-BASED EXERCISES ===
+  // These use plate-loaded or selectorised machines (not free weights, not
+  // cable pulleys). Images point at folders known to exist in the
+  // free-exercise-db CDN; for entries where the DB lacks a perfect match
+  // we reuse a visually similar entry as a stand-in.
+  { id: 'leg-press', slug: 'quadriceps/leg-press', image: 'Leg_Press', name: 'Leg Press', bodyPart: 'Legs', type: 'Machine',
+    desc: 'Sit in machine, feet shoulder-width on platform. Lower until knees ~90°, press back up without locking.' },
+  { id: 'hack-squat', slug: 'quadriceps/hack-squat', image: 'Hack_Squat', name: 'Hack Squat', bodyPart: 'Legs', type: 'Machine',
+    desc: 'Shoulders under pads, feet on platform. Squat down keeping back flat against pad, drive up through heels.' },
+  { id: 'seated-calf-raise', image: 'Standing_Barbell_Calf_Raise', name: 'Seated Calf Raise', bodyPart: 'Legs', type: 'Machine',
+    desc: 'Sit with knees under pad, balls of feet on platform. Rise onto toes, squeeze calves, lower with full stretch.' },
+  { id: 'chest-press-machine', slug: 'chest/machine-chest-press', image: 'Machine_Bench_Press', name: 'Chest Press Machine', bodyPart: 'Chest', type: 'Machine',
+    desc: 'Sit on machine, handles at chest level. Press forward until arms extended, control return without letting weights touch.' },
+  { id: 'pec-deck', slug: 'chest/pec-deck', image: 'Butterfly', name: 'Pec Deck (Chest Fly Machine)', bodyPart: 'Chest', type: 'Machine',
+    desc: 'Sit with back flat, forearms on pads. Squeeze arms together in front of chest, control the negative.' },
+  { id: 'shoulder-press-machine', slug: 'shoulders/machine-shoulder-press', image: 'Machine_Shoulder_(Military)_Press', name: 'Shoulder Press Machine', bodyPart: 'Shoulders', type: 'Machine',
+    desc: 'Sit upright, handles at shoulder level. Press up until arms nearly extended, lower with control.' },
+  { id: 'lateral-raise-machine', image: 'Side_Lateral_Raise', name: 'Lateral Raise Machine', bodyPart: 'Shoulders', type: 'Machine',
+    desc: 'Sit with pads against outer arms. Raise elbows out to sides until parallel with shoulders, lower slowly.' },
+  { id: 'machine-row', image: 'Machine-Assisted_Pull-Up', name: 'Seated Row Machine', bodyPart: 'Back', type: 'Machine',
+    desc: 'Sit with chest against pad, grasp handles. Pull handles to torso, squeeze shoulder blades, control return.' },
+  { id: 'preacher-curl-machine', image: 'Machine_Preacher_Curls', name: 'Preacher Curl Machine', bodyPart: 'Arms', type: 'Machine',
+    desc: 'Arms over pad, grip handles. Curl up squeezing biceps at top, lower under control to full extension.' },
+  { id: 'tricep-extension-machine', image: 'Machine_Tricep_Extension', name: 'Tricep Extension Machine', bodyPart: 'Arms', type: 'Machine',
+    desc: 'Sit with elbows on pad, grip handles. Extend arms fully squeezing triceps, return with control.' },
+  { id: 'ab-crunch-machine', image: 'Ab_Crunch_Machine', name: 'Ab Crunch Machine', bodyPart: 'Core', type: 'Machine',
+    desc: 'Sit with handles overhead or arms on pads. Crunch down contracting abs, control the return.' },
+
+  // === SMITH MACHINE EXERCISES ===
+  // Guided barbell on rails. Same movement patterns as free-weight versions
+  // but in a fixed plane, useful for solo lifters and beginners.
+  { id: 'smith-squat', image: 'Smith_Machine_Squat', name: 'Smith Machine Squat', bodyPart: 'Legs', type: 'Machine',
+    desc: 'Bar on upper back, feet shoulder-width. Squat down to parallel, drive up through heels.' },
+  { id: 'smith-bench', image: 'Smith_Machine_Bench_Press', name: 'Smith Machine Bench Press', bodyPart: 'Chest', type: 'Machine',
+    desc: 'Lie under bar at lower-chest height. Lower to chest under control, press straight up.' },
+  { id: 'smith-incline-bench', image: 'Incline_Bench_Press', name: 'Smith Incline Bench Press', bodyPart: 'Chest', type: 'Machine',
+    desc: 'Adjust bench to 30-45°. Lower bar to upper chest, press up to extension.' },
+  { id: 'smith-shoulder-press', image: 'Smith_Machine_Overhead_Shoulder_Press', name: 'Smith Shoulder Press', bodyPart: 'Shoulders', type: 'Machine',
+    desc: 'Seated under bar at shoulder height. Press overhead until arms extended, lower with control.' },
+  { id: 'smith-row', image: 'Smith_Machine_Bent_Over_Row', name: 'Smith Machine Row', bodyPart: 'Back', type: 'Machine',
+    desc: 'Bent at hips, bar at knee height. Pull bar to lower ribs, squeeze shoulder blades.' },
+  { id: 'smith-shrug', image: 'Smith_Machine_Shrug', name: 'Smith Machine Shrug', bodyPart: 'Back', type: 'Machine',
+    desc: 'Standing with bar in front of thighs. Shrug shoulders straight up, squeeze traps, lower slowly.' },
+  { id: 'smith-deadlift', image: 'Smith_Machine_Stiff-Legged_Deadlift', name: 'Smith Stiff-Leg Deadlift', bodyPart: 'Legs', type: 'Machine',
+    desc: 'Bar at hip level, legs slightly bent. Hinge at hips lowering bar mid-shin, drive hips forward to stand.' },
+  { id: 'smith-calf-raise', image: 'Smith_Machine_Calf_Raise', name: 'Smith Calf Raise', bodyPart: 'Legs', type: 'Machine',
+    desc: 'Balls of feet on platform under bar. Rise onto toes as high as possible, lower with stretch.' },
+
+  // === PLATE-LOADED & LEVERAGE MACHINES ===
+  { id: 'incline-chest-press-machine', image: 'Machine_Inclined_Bench_Press', name: 'Incline Chest Press Machine', bodyPart: 'Chest', type: 'Machine',
+    desc: 'Seat reclined ~30°, handles at upper chest. Press up and forward, control negative.' },
+  { id: 'decline-chest-press-machine', image: 'Machine_Decline_Press', name: 'Decline Chest Press Machine', bodyPart: 'Chest', type: 'Machine',
+    desc: 'Seat angled down, handles at lower chest. Press forward squeezing lower chest, lower under control.' },
+  { id: 'iso-row-machine', image: 'T-Bar_Row_with_Handle', name: 'T-Bar Row Machine', bodyPart: 'Back', type: 'Machine',
+    desc: 'Chest on pad, grip handles. Pull weight to chest, squeeze lats and rhomboids at top.' },
+  { id: 'high-row-machine', image: 'Machine-Assisted_Pull-Up', name: 'High Row Machine', bodyPart: 'Back', type: 'Machine',
+    desc: 'Seated facing pad, grip handles overhead. Pull handles down and back, drive elbows behind body.' },
+  { id: 'reverse-pec-deck', image: 'Reverse_Machine_Flyes', name: 'Reverse Pec Deck (Rear Delt)', bodyPart: 'Shoulders', type: 'Machine',
+    desc: 'Sit facing pad, arms forward. Pull handles out and back, squeeze rear delts and rhomboids.' },
+  { id: 'machine-tricep-dip', image: 'Weighted_Bench_Dip', name: 'Tricep Dip Machine', bodyPart: 'Arms', type: 'Machine',
+    desc: 'Seated with grips at sides. Press down extending arms, squeeze triceps, return with control.' },
+  { id: 'machine-bicep-curl', image: 'Machine_Bicep_Curl', name: 'Bicep Curl Machine', bodyPart: 'Arms', type: 'Machine',
+    desc: 'Seated, arms on pad, grip handles. Curl up squeezing biceps, lower under control.' },
+  { id: 'glute-kickback-machine', image: 'Machine_Kickbacks', name: 'Glute Kickback Machine', bodyPart: 'Hips', type: 'Machine',
+    desc: 'Lean on pad, foot against pedal. Push back extending hip, squeeze glute, control return.' },
+  { id: 'hip-abduction-machine', image: 'Thigh_Abductor', name: 'Hip Abduction Machine', bodyPart: 'Hips', type: 'Machine',
+    desc: 'Seated with knees against outer pads. Push knees apart, hold contraction, return slowly.' },
+  { id: 'hip-adduction-machine', image: 'Thigh_Adductor', name: 'Hip Adduction Machine', bodyPart: 'Hips', type: 'Machine',
+    desc: 'Seated with knees against inner pads. Squeeze knees together against resistance, control return.' },
+  { id: 'standing-calf-raise-machine', image: 'Standing_Dumbbell_Calf_Raise', name: 'Standing Calf Raise Machine', bodyPart: 'Legs', type: 'Machine',
+    desc: 'Shoulders under pads, balls of feet on platform. Rise onto toes, deep stretch at bottom.' },
+  { id: 'glute-ham-raise', image: 'Glute_Ham_Raise', name: 'Glute Ham Raise', bodyPart: 'Hips', type: 'Machine',
+    desc: 'Lock feet in pad, body extended. Lower torso under control, raise back up using hamstrings and glutes.' },
+  { id: 'assisted-pull-up-machine', image: 'Machine-Assisted_Chin-Up', name: 'Assisted Pull-Up Machine', bodyPart: 'Back', type: 'Machine',
+    desc: 'Knees on platform with assistance weight. Pull up bringing chin over bar, lower under control.' },
+  { id: 'assisted-dip-machine', image: 'Weighted_Bench_Dip', name: 'Assisted Dip Machine', bodyPart: 'Chest', type: 'Machine',
+    desc: 'Knees on platform, grip parallel handles. Dip down feeling stretch, press up squeezing chest/triceps.' },
+  { id: 'back-extension-machine', image: 'Hyperextensions', name: 'Back Extension Machine', bodyPart: 'Back', type: 'Machine',
+    desc: 'Hips on pad, ankles secured. Lower torso bending at hips, raise to neutral squeezing lower back.' },
+  { id: 'roman-chair-situp', image: 'Decline_Crunch', name: 'Decline Sit-Up Machine', bodyPart: 'Core', type: 'Machine',
+    desc: 'Ankles locked on decline bench. Sit up bringing chest toward knees, lower under control.' },
+  { id: 'rotary-torso-machine', image: 'Oblique_Crunches', name: 'Rotary Torso Machine', bodyPart: 'Core', type: 'Machine',
+    desc: 'Seated facing machine, grip handles. Rotate torso side to side, squeeze obliques at end range.' },
+  { id: 'cable-pull-through', image: 'Cable_Deadlifts', name: 'Cable Pull-Through', bodyPart: 'Hips', type: 'Cable',
     desc: 'Face away from low pulley, rope between legs. Hinge at hips, drive forward squeezing glutes.' },
-  { id: 'cable-kickback', image: 'Cable_Hip_Adduction', name: 'Cable Glute Kickback', bodyPart: 'Legs', type: 'Cable',
+  { id: 'cable-kickback', image: 'Cable_Hip_Adduction', name: 'Cable Glute Kickback', bodyPart: 'Hips', type: 'Cable',
     desc: 'Ankle strap on low cable. Kick leg straight back, squeeze glute at top, control return.' },
-  { id: 'bw-squat', image: 'Bodyweight_Squat', name: 'Bodyweight Squat', bodyPart: 'Legs', type: 'Body Weight',
+  { id: 'bw-squat', slug: 'quadriceps/bodyweight-squat', image: 'Bodyweight_Squat', name: 'Bodyweight Squat', bodyPart: 'Legs', type: 'Body Weight',
     desc: 'Feet shoulder-width. Squat down keeping chest up and weight on heels. Stand fully.' },
-  { id: 'bw-lunge', image: 'Bodyweight_Walking_Lunge', name: 'Bodyweight Lunge', bodyPart: 'Legs', type: 'Body Weight',
+  { id: 'bw-lunge', slug: 'quadriceps/bodyweight-lunge', image: 'Bodyweight_Walking_Lunge', name: 'Bodyweight Lunge', bodyPart: 'Legs', type: 'Body Weight',
     desc: 'Step forward into lunge, both knees at 90°. Push back to start. Alternate legs.' },
   { id: 'jump-squat', image: 'Bench_Jump', name: 'Jump Squat', bodyPart: 'Legs', type: 'Body Weight',
     desc: 'Squat down, then explode up into a jump. Land softly into next rep. Builds power.' },
   { id: 'pistol-squat', image: 'Bodyweight_Squat', name: 'Pistol Squat', bodyPart: 'Legs', type: 'Body Weight',
     desc: 'Single-leg squat, other leg held straight in front. Advanced unilateral movement.' },
-  { id: 'glute-bridge', image: 'Butt_Lift_Bridge', name: 'Glute Bridge', bodyPart: 'Legs', type: 'Body Weight',
+  { id: 'glute-bridge', slug: 'glutes/glute-bridge', image: 'Butt_Lift_Bridge', name: 'Glute Bridge', bodyPart: 'Hips', type: 'Body Weight',
     desc: 'Lie on back, knees bent. Drive hips up squeezing glutes, hold briefly, lower with control.' },
   { id: 'bw-calf-raise', image: 'Calf_Raises_-_With_Bands', name: 'Bodyweight Calf Raise', bodyPart: 'Legs', type: 'Body Weight',
     desc: 'Stand on edge of step, heels hanging. Rise up onto toes, lower below step level. Full ROM.' },
@@ -1798,13 +1885,13 @@ const EXERCISES = [
     desc: 'Bar starts behind neck. Press overhead. Hits rear delts and traps; requires mobility.' },
   { id: 'upright-row', image: 'Dumbbell_One-Arm_Upright_Row', name: 'Barbell Upright Row', bodyPart: 'Shoulders', type: 'Bar',
     desc: 'Bar at hips, narrow grip. Pull up to chest level leading with elbows. Hits side delts and traps.' },
-  { id: 'db-shoulder-press', image: 'Dumbbell_Shoulder_Press', name: 'Dumbbell Shoulder Press', bodyPart: 'Shoulders', type: 'Dumbbell',
+  { id: 'db-shoulder-press', slug: 'shoulders/dumbbell-shoulder-press', image: 'Dumbbell_Shoulder_Press', name: 'Dumbbell Shoulder Press', bodyPart: 'Shoulders', type: 'Dumbbell',
     desc: 'Seated or standing, dumbbells at shoulders. Press up until arms extend overhead.' },
-  { id: 'arnold-press', image: 'Arnold_Dumbbell_Press', name: 'Arnold Press', bodyPart: 'Shoulders', type: 'Dumbbell',
+  { id: 'arnold-press', slug: 'shoulders/arnold-press', image: 'Arnold_Dumbbell_Press', name: 'Arnold Press', bodyPart: 'Shoulders', type: 'Dumbbell',
     desc: 'Start palms facing you at chin level. Rotate out as you press overhead. All three delt heads.' },
-  { id: 'lateral-raise', image: 'Alternating_Deltoid_Raise', name: 'Lateral Raise', bodyPart: 'Shoulders', type: 'Dumbbell',
+  { id: 'lateral-raise', slug: 'shoulders/dumbbell-lateral-raise', image: 'Alternating_Deltoid_Raise', name: 'Lateral Raise', bodyPart: 'Shoulders', type: 'Dumbbell',
     desc: 'Dumbbells at sides. Raise arms out to shoulder height with slight bend, lower slowly.' },
-  { id: 'front-raise', image: 'Dumbbell_Raise', name: 'Front Raise', bodyPart: 'Shoulders', type: 'Dumbbell',
+  { id: 'front-raise', slug: 'shoulders/dumbbell-front-raise', image: 'Dumbbell_Raise', name: 'Front Raise', bodyPart: 'Shoulders', type: 'Dumbbell',
     desc: 'Dumbbells in front of thighs. Raise one or both arms straight forward to shoulder height.' },
   { id: 'rear-delt-fly', image: 'Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench', name: 'Bent-Over Rear Delt Fly', bodyPart: 'Shoulders', type: 'Dumbbell',
     desc: 'Hinge forward 45°. Raise dumbbells out to sides squeezing rear delts. Posture protection.' },
@@ -1814,7 +1901,7 @@ const EXERCISES = [
     desc: 'Cable at low setting, opposite hand. Raise arm out to shoulder height, control descent.' },
   { id: 'cable-front-raise', image: 'Cable_Iron_Cross', name: 'Cable Front Raise', bodyPart: 'Shoulders', type: 'Cable',
     desc: 'Low cable, bar in front. Raise straight up to shoulder height. Constant front delt tension.' },
-  { id: 'face-pull', image: 'Cable_Rear_Delt_Fly', name: 'Face Pull', bodyPart: 'Shoulders', type: 'Cable',
+  { id: 'face-pull', slug: 'shoulders/face-pull', image: 'Cable_Rear_Delt_Fly', name: 'Face Pull', bodyPart: 'Shoulders', type: 'Cable',
     desc: 'Rope at face height. Pull to face, elbows high, external rotation. Rear delts and posture.' },
   { id: 'cable-rear-delt-fly', image: 'Cable_Rear_Delt_Fly', name: 'Cable Rear Delt Fly', bodyPart: 'Shoulders', type: 'Cable',
     desc: 'Cross cables at shoulder height. Pull handles outward in reverse fly motion. Rear delt isolation.' },
@@ -1824,35 +1911,35 @@ const EXERCISES = [
     desc: 'Handstand against wall. Lower head to floor and press back up. Advanced overhead pressing.' },
 
   // ===== ARMS =====
-  { id: 'barbell-curl', image: 'Barbell_Curl', name: 'Barbell Curl', bodyPart: 'Arms', type: 'Bar',
+  { id: 'barbell-curl', slug: 'biceps/barbell-curl', image: 'Barbell_Curl', name: 'Barbell Curl', bodyPart: 'Arms', type: 'Bar',
     desc: 'Bar at hip, underhand grip. Curl to shoulders without swinging. Squeeze biceps, lower slowly.' },
   { id: 'ez-bar-curl', image: 'EZ-Bar_Curl', name: 'EZ Bar Curl', bodyPart: 'Arms', type: 'Bar',
     desc: 'EZ bar reduces wrist strain. Same form as barbell curl. Easier on joints.' },
-  { id: 'preacher-curl', image: 'Cable_Preacher_Curl', name: 'Preacher Curl', bodyPart: 'Arms', type: 'Bar',
+  { id: 'preacher-curl', slug: 'biceps/preacher-curl', image: 'Cable_Preacher_Curl', name: 'Preacher Curl', bodyPart: 'Arms', type: 'Bar',
     desc: 'Arms over preacher bench pad. Curl with strict form, no momentum. Biceps peak isolation.' },
   { id: 'reverse-curl', image: 'Drag_Curl', name: 'Reverse Curl', bodyPart: 'Arms', type: 'Bar',
     desc: 'Overhand grip on bar. Curl to shoulders. Hits brachialis and forearms.' },
-  { id: 'skull-crusher', image: 'EZ-Bar_Skullcrusher', name: 'Skull Crusher', bodyPart: 'Arms', type: 'Bar',
+  { id: 'skull-crusher', slug: 'triceps/skull-crusher', image: 'EZ-Bar_Skullcrusher', name: 'Skull Crusher', bodyPart: 'Arms', type: 'Bar',
     desc: 'Lie flat, EZ bar held overhead. Bend elbows to lower bar toward forehead, extend back up.' },
-  { id: 'db-curl', image: 'Dumbbell_Bicep_Curl', name: 'Dumbbell Curl', bodyPart: 'Arms', type: 'Dumbbell',
+  { id: 'db-curl', slug: 'biceps/dumbbell-curl', image: 'Dumbbell_Bicep_Curl', name: 'Dumbbell Curl', bodyPart: 'Arms', type: 'Dumbbell',
     desc: 'Dumbbells at sides, palms forward. Curl to shoulder, squeeze biceps, lower with control.' },
-  { id: 'hammer-curl', image: 'Alternate_Hammer_Curl', name: 'Hammer Curl', bodyPart: 'Arms', type: 'Dumbbell',
+  { id: 'hammer-curl', slug: 'biceps/hammer-curl', image: 'Alternate_Hammer_Curl', name: 'Hammer Curl', bodyPart: 'Arms', type: 'Dumbbell',
     desc: 'Dumbbells at sides, palms facing in (neutral). Curl up keeping palms neutral. Hits brachialis.' },
   { id: 'incline-curl', image: 'Alternate_Incline_Dumbbell_Curl', name: 'Incline Dumbbell Curl', bodyPart: 'Arms', type: 'Dumbbell',
     desc: 'Seated on incline bench. Arms hang down. Curl with full stretch at bottom. Long head emphasis.' },
   { id: 'concentration-curl', image: 'Concentration_Curls', name: 'Concentration Curl', bodyPart: 'Arms', type: 'Dumbbell',
     desc: 'Seated, elbow braced against inner thigh. Curl single dumbbell. Peak isolation.' },
-  { id: 'overhead-tricep-ext', image: 'Decline_Dumbbell_Triceps_Extension', name: 'Overhead Tricep Extension', bodyPart: 'Arms', type: 'Dumbbell',
+  { id: 'overhead-tricep-ext', slug: 'triceps/overhead-tricep-extension', image: 'Decline_Dumbbell_Triceps_Extension', name: 'Overhead Tricep Extension', bodyPart: 'Arms', type: 'Dumbbell',
     desc: 'Hold dumbbell overhead with both hands. Lower behind head bending at elbows, extend back up.' },
   { id: 'tricep-kickback', image: 'Dumbbell_One-Arm_Triceps_Extension', name: 'Tricep Kickback', bodyPart: 'Arms', type: 'Dumbbell',
     desc: 'Hinge forward, upper arm parallel to body. Extend forearm back, squeeze tricep, return.' },
   { id: 'db-wrist-curl', image: 'Dumbbell_Lying_Pronation', name: 'Wrist Curl', bodyPart: 'Arms', type: 'Dumbbell',
     desc: 'Forearm on bench, wrist hanging off. Curl dumbbell up using only wrist. Forearm builder.' },
-  { id: 'cable-curl', image: 'Cable_Hammer_Curls_-_Rope_Attachment', name: 'Cable Curl', bodyPart: 'Arms', type: 'Cable',
+  { id: 'cable-curl', slug: 'biceps/cable-curl', image: 'Cable_Hammer_Curls_-_Rope_Attachment', name: 'Cable Curl', bodyPart: 'Arms', type: 'Cable',
     desc: 'Stand at low pulley with bar. Curl to shoulders with constant tension, lower slowly.' },
   { id: 'cable-hammer-curl', image: 'Alternate_Hammer_Curl', name: 'Cable Hammer Curl', bodyPart: 'Arms', type: 'Cable',
     desc: 'Low cable with rope. Curl with neutral grip, hands turn out at top. Brachialis focus.' },
-  { id: 'tricep-pushdown', image: 'Cable_One_Arm_Tricep_Extension', name: 'Tricep Pushdown', bodyPart: 'Arms', type: 'Cable',
+  { id: 'tricep-pushdown', slug: 'triceps/tricep-pushdown', image: 'Cable_One_Arm_Tricep_Extension', name: 'Tricep Pushdown', bodyPart: 'Arms', type: 'Cable',
     desc: 'High pulley with bar/rope. Elbows pinned at sides. Press down until arms extend, squeeze tris.' },
   { id: 'tricep-rope-pushdown', image: 'Cable_Rope_Overhead_Triceps_Extension', name: 'Rope Tricep Pushdown', bodyPart: 'Arms', type: 'Cable',
     desc: 'Rope attachment at high pulley. Press down and split rope outward at bottom. Lateral head focus.' },
@@ -1866,27 +1953,27 @@ const EXERCISES = [
     desc: 'Palms facing you, narrow grip. Pull chin over bar focusing on biceps engagement.' },
 
   // ===== CORE =====
-  { id: 'plank', image: 'Bent-Knee_Hip_Raise', name: 'Plank', bodyPart: 'Core', type: 'Body Weight',
+  { id: 'plank', slug: 'abs/plank', image: 'Bent-Knee_Hip_Raise', name: 'Plank', bodyPart: 'Core', type: 'Body Weight',
     desc: 'Forearms on floor, body in straight line. Hold position with tight core. Time-based.' },
   { id: 'side-plank', image: 'Cross-Body_Crunch', name: 'Side Plank', bodyPart: 'Core', type: 'Body Weight',
     desc: 'Side-lying, prop up on one forearm. Body straight, hold. Obliques and lateral core.' },
-  { id: 'hanging-leg-raise', image: 'Dirty_Dog', name: 'Hanging Leg Raise', bodyPart: 'Core', type: 'Body Weight',
+  { id: 'hanging-leg-raise', slug: 'abs/hanging-leg-raise', image: 'Dirty_Dog', name: 'Hanging Leg Raise', bodyPart: 'Core', type: 'Body Weight',
     desc: 'Hang from bar. Raise legs to 90° or higher, lower with control. No swinging.' },
   { id: 'hanging-knee-raise', image: 'Bottoms_Up', name: 'Hanging Knee Raise', bodyPart: 'Core', type: 'Body Weight',
     desc: 'Hang from bar. Bring knees up toward chest, lower with control. Easier than leg raise.' },
-  { id: 'sit-up', image: 'Decline_Crunch', name: 'Sit-Up', bodyPart: 'Core', type: 'Body Weight',
+  { id: 'sit-up', slug: 'abs/sit-up', image: 'Decline_Crunch', name: 'Sit-Up', bodyPart: 'Core', type: 'Body Weight',
     desc: 'Lie with knees bent. Sit up bringing chest to knees, lower with control.' },
-  { id: 'crunch', image: 'Crunches', name: 'Crunch', bodyPart: 'Core', type: 'Body Weight',
+  { id: 'crunch', slug: 'abs/crunch', image: 'Crunches', name: 'Crunch', bodyPart: 'Core', type: 'Body Weight',
     desc: 'Lie on back, knees bent. Curl shoulders off floor squeezing abs, lower with control.' },
   { id: 'bicycle-crunch', image: 'Air_Bike', name: 'Bicycle Crunch', bodyPart: 'Core', type: 'Body Weight',
     desc: 'Lie on back. Alternate touching elbow to opposite knee in cycling motion. Obliques.' },
-  { id: 'russian-twist', image: 'Cable_Russian_Twists', name: 'Russian Twist', bodyPart: 'Core', type: 'Body Weight',
+  { id: 'russian-twist', slug: 'abs/russian-twist', image: 'Cable_Russian_Twists', name: 'Russian Twist', bodyPart: 'Core', type: 'Body Weight',
     desc: 'Seated, lean back, feet off floor. Rotate torso side to side. Obliques.' },
-  { id: 'mountain-climber', image: 'Cocoons', name: 'Mountain Climber', bodyPart: 'Core', type: 'Body Weight',
+  { id: 'mountain-climber', slug: 'abs/mountain-climber', image: 'Cocoons', name: 'Mountain Climber', bodyPart: 'Core', type: 'Body Weight',
     desc: 'Plank position. Drive knees alternately toward chest at fast pace. Core and cardio.' },
   { id: 'dead-bug', image: 'Dead_Bug', name: 'Dead Bug', bodyPart: 'Core', type: 'Body Weight',
     desc: 'Lie on back, arms up, knees at 90°. Extend opposite arm and leg, return. Core stability.' },
-  { id: 'cable-crunch', image: 'Cable_Crunch', name: 'Cable Crunch', bodyPart: 'Core', type: 'Cable',
+  { id: 'cable-crunch', slug: 'abs/cable-crunch', image: 'Cable_Crunch', name: 'Cable Crunch', bodyPart: 'Core', type: 'Cable',
     desc: 'Kneel facing cable with rope behind head. Crunch down using abs, not arms. Squeeze.' },
   { id: 'cable-woodchop', image: 'Cable_Judo_Flip', name: 'Cable Woodchop', bodyPart: 'Core', type: 'Cable',
     desc: 'High cable. Pull handle diagonally down across body. Rotational core power.' },
@@ -2093,13 +2180,24 @@ function exerciseSvg(id) {
 // ============================================================
 const IMAGE_CACHE_NAME = 'workout-tracker-images-v1';
 const IMG_BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/';
+// Newer dataset that ships anatomical-illustration GIFs (Hevy-style figure
+// with highlighted muscle). Used when an exercise entry has a `slug` field
+// indicating which muscle folder + slug to fetch. Falls back to the older
+// IMG_BASE if no slug is set on the exercise.
+const SLUG_BASE = 'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/';
 
 const imgBlobUrls = new Map();   // image folder name -> blob URL (in-memory map)
 const imgFailed   = new Set();   // image folder name -> known-bad (skip retry)
 const imgInflight = new Map();   // image folder name -> Promise (dedupe parallel requests)
 
-function imageUrl(folder) {
-  return IMG_BASE + encodeURIComponent(folder) + '/0.jpg';
+function imageUrl(key) {
+  // Two URL schemes are supported:
+  //   "slug:<muscle>/<slug>"  → JahelCuadrado CDN (animated GIF, anatomical)
+  //   "<folder>"              → legacy free-exercise-db CDN (static JPG)
+  if (key.startsWith('slug:')) {
+    return SLUG_BASE + key.slice(5) + '.gif';
+  }
+  return IMG_BASE + encodeURIComponent(key) + '/0.jpg';
 }
 
 async function getCachedBlobUrl(folder) {
@@ -2205,10 +2303,13 @@ function activateImagePlaceholders(rootEl) {
 function exerciseImage(id) {
   const ex = EXERCISES.find(e => e.id === id);
   if (!ex) return exerciseSvg(id);
-  const folder = ex.image;
+  // Prefer the slug-based key (new dataset) if the exercise has one.
+  // The key string is passed verbatim to imageUrl() which knows how to
+  // split it. "slug:..." → JahelCuadrado CDN, otherwise folder → free-db.
+  const key = ex.slug ? 'slug:' + ex.slug : ex.image;
   // 1x1 transparent gif to suppress the broken-image icon before the real src is set
   const placeholderSrc = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
-  return `<div class="img-holder" data-img-folder="${escapeHtml(folder)}" style="width:100%; height:100%; position:relative;">
+  return `<div class="img-holder" data-img-folder="${escapeHtml(key)}" style="width:100%; height:100%; position:relative;">
     <img src="${placeholderSrc}" alt="${escapeHtml(ex.name)}" decoding="async" style="width:100%; height:100%; object-fit:cover; background:var(--surface-2);">
     <span class="img-fallback" style="display:none; width:100%; height:100%; position:absolute; inset:0;">${exerciseSvg(id)}</span>
   </div>`;
@@ -6518,9 +6619,17 @@ async function init() {
     }, 50);
   });
 
-  // Sets
+  // Sets — adding a new set defaults to the previous set's values, so a
+  // typical "3 sets of 10 @ 60kg" workout only needs you to fill the first
+  // set then tap "Add set" twice. Each set still has its own state, so
+  // editing one doesn't change the others.
   $('#addSetBtn').addEventListener('click', () => {
-    currentSets.push({ reps: '', weight: '', note: '' });
+    const last = currentSets.length > 0 ? currentSets[currentSets.length - 1] : null;
+    currentSets.push({
+      reps:   last && last.reps   !== '' ? last.reps   : '',
+      weight: last && last.weight !== '' ? last.weight : '',
+      note: '',  // notes are per-set context, don't carry over
+    });
     renderSetsCard();
   });
   $('#saveBtn').addEventListener('click', saveCurrentWorkout);
