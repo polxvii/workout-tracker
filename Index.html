@@ -1224,7 +1224,10 @@ select {
         </div>
 
         <div class="form-group">
-          <label>Activity</label>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <label id="cardioActivityLabel">Activity</label>
+            <button type="button" id="cardioChangeActivityBtn" style="display:none; background:transparent; border:none; color:var(--primary); font-size:13px; cursor:pointer; font-family:inherit; padding:0;">Change</button>
+          </div>
           <div class="exercise-grid" id="cardioActivityGrid" style="grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));"></div>
         </div>
 
@@ -4375,7 +4378,30 @@ function cardioImage(activity) {
 function renderCardioActivityGrid() {
   const grid = $('#cardioActivityGrid');
   if (!grid) return;
+  const label = $('#cardioActivityLabel');
+  const changeBtn = $('#cardioChangeActivityBtn');
   try {
+    // When an activity is selected, collapse the grid down to JUST that
+    // card so the form fields below get full attention. The "Change"
+    // button re-expands the grid.
+    if (selectedCardioActivity) {
+      const a = cardioActivityById(selectedCardioActivity);
+      if (a) {
+        if (label) label.textContent = 'Selected activity';
+        if (changeBtn) changeBtn.style.display = 'inline-block';
+        grid.innerHTML = `
+          <div class="exercise-card selected" data-activity="${a.id}" style="grid-column: 1 / -1; max-width: 200px; margin: 0 auto;">
+            <div class="exercise-img" style="height:90px;">${cardioImage(a)}</div>
+            <div class="exercise-name">${escapeHtml(a.name)}</div>
+          </div>`;
+        activateImagePlaceholders(grid);
+        return;
+      }
+    }
+
+    // No selection — show the full grid
+    if (label) label.textContent = 'Activity';
+    if (changeBtn) changeBtn.style.display = 'none';
     grid.innerHTML = CARDIO_ACTIVITIES.map(a => `
       <div class="exercise-card ${selectedCardioActivity === a.id ? 'selected' : ''}" data-activity="${a.id}">
         <div class="exercise-img" style="height:90px;">${cardioImage(a)}</div>
@@ -4395,6 +4421,7 @@ function renderCardioActivityGrid() {
         setTimeout(() => $('#cardioInputs').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
       });
     });
+    activateImagePlaceholders(grid);
   } catch (err) {
     grid.innerHTML = '<div style="color:var(--danger); padding:12px; font-size:13px;">⚠️ Could not render activity grid: ' + escapeHtml(err.message || String(err)) + '</div>';
   }
@@ -4540,19 +4567,58 @@ function parseCardioPaste() {
         const after = lines[i].replace(labelRegex, ' ');
         let m = after.match(valuePattern);
         if (m) return m;
-        // Next line
-        if (i + 1 < lines.length) {
-          m = lines[i + 1].match(valuePattern);
-          if (m) return m;
-        }
-        // Previous line — Garmin's Overview screen actually puts values
-        // ABOVE their labels ("2.60 km" then "Distance"), so without this
-        // we end up grabbing whatever comes after instead, which is usually
-        // a completely unrelated metric.
+        // Previous line FIRST — Garmin Overview lays out
+        //   "2.60 km"     ← value
+        //   "Distance"    ← label
+        //   "124 bpm @ …" ← next field's value
+        // so checking "next" before "prev" would grab the wrong row.
         if (i - 1 >= 0) {
           m = lines[i - 1].match(valuePattern);
           if (m) return m;
         }
+        // Next line — for Stats screens where labels come first.
+        if (i + 1 < lines.length) {
+          m = lines[i + 1].match(valuePattern);
+          if (m) return m;
+        }
+      }
+    }
+    return null;
+  }
+
+  // For Garmin Overview, multiple values share one line and their labels
+  // share the next line:
+  //   "39:55 262"                ← values
+  //   "Total Time Total Calories"← labels
+  // findValueFor would just grab the FIRST number-like thing on whichever
+  // line we look at, but here we want the calorie value (262), not the time.
+  //
+  // This helper finds the label's column position on a label line, then
+  // picks the value on a neighbouring line whose column position is
+  // closest. Works for either label-above-values or values-above-labels.
+  function findColumnAlignedValue(labelRegex, valueRegex) {
+    for (let i = 0; i < lines.length; i++) {
+      const labelMatch = lines[i].match(labelRegex);
+      if (!labelMatch) continue;
+      const labelCol = labelMatch.index;
+
+      // Check both neighbours (prev wins for Garmin Overview style)
+      for (const j of [i - 1, i + 1]) {
+        if (j < 0 || j >= lines.length) continue;
+        const valueLine = lines[j];
+        // Collect every value match with its column position
+        const matches = [...valueLine.matchAll(new RegExp(valueRegex.source, 'g' + (valueRegex.flags.includes('i') ? 'i' : '')))];
+        if (matches.length === 0) continue;
+        // Pick the one whose start column is closest to the label's column.
+        // This handles "39:55 262" / "Total Time Total Calories" — "262"
+        // (column ~6) aligns with "Total Calories" (column ~11), beating
+        // "39:55" (column 0) which aligns with "Total Time" (column 0).
+        let best = matches[0], bestDist = Math.abs(best.index - labelCol);
+        for (let k = 1; k < matches.length; k++) {
+          const d = Math.abs(matches[k].index - labelCol);
+          if (d < bestDist) { best = matches[k]; bestDist = d; }
+        }
+        return best;
       }
     }
     return null;
@@ -4585,28 +4651,45 @@ function parseCardioPaste() {
   if (durationMin) { $('#cardioDuration').value = formatDurationHMS(durationMin); filled++; }
 
   // ============= DISTANCE =============
-  // "5.2 km", "3.1 mi", "1,200 m". Avoid matching "km/h" or "min".
-  // ANCHORING STRATEGY: when a "Distance" label exists, we prefer the value
-  // closest to it (same line / next / previous — Garmin puts values ABOVE
-  // labels on the Overview screen). The label-anchored match wins.
-  const distLabel = findValueFor(/\bdistance\b/i, /(\d+(?:[\.,]\d+)?)\s*(km|mi|miles|meters?|m)\b/i);
-  // Label-free fallback: scan the WHOLE text for every km mention, then
-  // prefer values with a decimal point (Garmin's "2.60 km" pattern) over
-  // bare integers (which are usually OCR mis-reads of "21:53 /km" pace
-  // numbers etc.). We skip "km/h" (speed) and "kg" (weight).
+  // "5.2 km", "3.1 mi", "1,200 m". Avoid matching "km/h", "kg", or pace
+  // patterns like "15:21 km" (which is actually pace mm:ss per km but the
+  // slash often gets eaten by OCR).
+  //
+  // GARBLED-UNIT TOLERANCE: Tesseract on small "km" text on dark backgrounds
+  // (Garmin Overview screen) sometimes reads it as "wn", "vn", "tm", "im",
+  // "nm", or "kn". When we see the "Distance" label, we accept a wider
+  // pattern that includes these mis-reads — but only label-anchored, to
+  // avoid false positives elsewhere.
+  const distLabel = findValueFor(
+    /\bdistance\b/i,
+    /(\d+(?:[\.,]\d+)?)\s*(km|kn|wn|vn|tm|im|nm|mi|miles|meters?|m)\b/i
+  );
+
+  // Label-free fallback: scan the WHOLE text for every km mention.
+  // Critically, skip patterns where the number has a colon right before it
+  // (pace format "mm:ss km" or "mm:ss /km"). We also prefer decimal values
+  // since Garmin shows distance with one digit after the decimal point.
   let distMatch = distLabel;
   if (!distMatch) {
     const allKm = [...text.matchAll(/(\d+(?:[\.,]\d+)?)\s*km(?!\/|g)/ig)];
-    // Sort: decimal-containing values first, then by closest-to-typical
-    // running distance (shorter is more likely).
     const ranked = allKm
-      .map(m => ({ raw: m[0], val: m[1], hasDecimal: /[.,]/.test(m[1]), num: parseFloat(String(m[1]).replace(',', '.')) }))
-      .filter(x => isFinite(x.num) && x.num > 0 && x.num <= 200)
+      .map(m => {
+        // Look at what came RIGHT BEFORE this match in the original text.
+        // If there's a "X:" prefix immediately before, this is a pace
+        // number masquerading as distance (e.g. "15:21 km" → not 21 km).
+        const before = text.slice(Math.max(0, m.index - 4), m.index);
+        const isPace = /\d:\s*$/.test(before);
+        return {
+          raw: m[0], val: m[1],
+          hasDecimal: /[.,]/.test(m[1]),
+          num: parseFloat(String(m[1]).replace(',', '.')),
+          isPace,
+        };
+      })
+      .filter(x => isFinite(x.num) && x.num > 0 && x.num <= 200 && !x.isPace)
       .sort((a, b) => {
         // Decimal beats integer
         if (a.hasDecimal !== b.hasDecimal) return a.hasDecimal ? -1 : 1;
-        // Within same group, smaller positive value wins (usually correct
-        // distance vs. a stray pace number that happens to be larger)
         return a.num - b.num;
       });
     if (ranked.length) {
@@ -4669,17 +4752,24 @@ function parseCardioPaste() {
   //   Apple Health:  "287 CAL" / "287 kcal"
   //   Treadmill:     "CAL 245" / "Calories Burned 245"
   //   Polar/Strava:  "350 kcal" / "350 calories"
-  // We try labelled lookups first (most reliable), then a generic kcal hit.
+  //   Garmin Overview (tricky): values and labels on separate lines, side-by-side
+  //     "39:55 262"                ← values row
+  //     "Total Time Total Calories" ← labels row
+  // The column-aligned lookup handles that layout; the regexes handle the rest.
   let calMatch =
-       text.match(/(?:total\s*)?calories?\s*(?:burned?)?\s*[:=]?\s*(\d{1,4})\s*(?:c|cal|kcal)?\b/i)
+       findColumnAlignedValue(/\b(?:total\s*)?calories?\b/i, /\d{2,4}/)
+    || text.match(/(?:total\s*)?calories?\s*(?:burned?)?\s*[:=]?\s*(\d{1,4})\s*(?:c|cal|kcal)?\b/i)
     || text.match(/\bkcal\s*[:=]?\s*(\d{1,4})\b/i)
     || text.match(/\b(\d{1,4})\s*kcal\b/i)
     || text.match(/\b(\d{1,4})\s*cal(?:ories)?\b/i)
     || text.match(/\bcal\s*[:=]?\s*(\d{1,4})\b/i);
+  // Normalise: findColumnAlignedValue returns the bare number match;
+  // the labelled regexes capture it in group 1. Use group 1 if present.
+  const calVal = calMatch ? (calMatch[1] != null ? calMatch[1] : calMatch[0]) : null;
   // Sanity-check: 10–5000 kcal range. (Below 10 is likely a stray number; above
   // 5000 is implausible for a single session.)
-  if (calMatch && +calMatch[1] >= 10 && +calMatch[1] <= 5000) {
-    $('#cardioCalories').value = calMatch[1];
+  if (calVal && +calVal >= 10 && +calVal <= 5000) {
+    $('#cardioCalories').value = calVal;
     filled++;
   }
 
@@ -6606,6 +6696,17 @@ async function init() {
 
   $('#cardioSaveBtn').addEventListener('click', saveCardioSession);
   $('#cardioParseBtn').addEventListener('click', parseCardioPaste);
+
+  // "Change" link next to the activity grid header — re-expand the grid
+  // so user can pick a different activity. Also collapses the form below.
+  $('#cardioChangeActivityBtn').addEventListener('click', () => {
+    selectedCardioActivity = null;
+    $('#cardioInputs').style.display = 'none';
+    $('#cardioMachineRow').style.display = 'none';
+    $('#cardioReviewBanner').style.display = 'none';
+    clearAllFieldErrors($('#cardioFormSection'));
+    renderCardioActivityGrid();
+  });
 
   // Show raw OCR text button — useful when fields parse wrong and we
   // need to see exactly what Tesseract read from the screenshot.
