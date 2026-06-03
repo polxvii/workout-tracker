@@ -602,22 +602,33 @@ select {
 .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.5; }
 .empty-title { font-weight: 600; color: var(--text); margin-bottom: 4px; }
 
-/* Progress table */
+/* Progress table — narrow on mobile, so tighten padding + smaller font
+   help most data fit. The big "by exercise" summary uses the wide variant
+   which forces horizontal scroll instead of squashing columns. */
+.progress-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -4px;  /* breathe to card edge so scroll feels natural */
+}
 .progress-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
+}
+.progress-table.wide {
+  min-width: 520px;  /* don't squash columns below this; scroll instead */
 }
 .progress-table th, .progress-table td {
-  padding: 8px 6px;
+  padding: 8px 5px;
   text-align: left;
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
 .progress-table th {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   font-weight: 600;
 }
 .progress-table td { font-variant-numeric: tabular-nums; }
@@ -2872,7 +2883,15 @@ function populateProgressExercises() {
 // ============================================================
 function renderExerciseGrid() {
   const grid = $('#exerciseGrid');
-  const loggedIds = new Set(state.logs.map(l => l.exerciseId));
+  // The green corner dot on each card indicates "you logged this exercise
+  // on the currently-selected date". Filter logs by date so changing the
+  // datepicker actually changes which dots show. Previously this was a
+  // global "ever logged" check, which was misleading — a freshly-picked
+  // future date would still show dots for everything you'd ever trained.
+  const selectedDate = $('#logDate').value;
+  const loggedIds = new Set(
+    state.logs.filter(l => l.date === selectedDate).map(l => l.exerciseId)
+  );
 
   // Defensive: if selectedExercise points to an unknown id (e.g. stale state), clear it
   if (state.selectedExercise && !exerciseById(state.selectedExercise)) {
@@ -3786,7 +3805,8 @@ function renderProgressAll() {
     <div class="card">
       <div class="card-title">Progress by exercise</div>
       <div style="font-size:12px; color:var(--text-faint); margin-bottom:10px;">Tap a row to see detailed progress for that exercise</div>
-      <table class="progress-table">
+      <div class="progress-table-wrap">
+      <table class="progress-table wide">
         <thead>
           <tr>
             <th>Exercise</th>
@@ -3796,8 +3816,6 @@ function renderProgressAll() {
             <th style="text-align:right">Avg wt</th>
             <th style="text-align:right">Max wt</th>
             <th style="text-align:right">Total reps</th>
-            <th style="text-align:right" title="Change in total reps from your first workout day to your most recent">Reps Δ</th>
-            <th style="text-align:right" title="Change in heaviest weight lifted from your first workout day to your most recent">Max wt Δ</th>
           </tr>
         </thead>
         <tbody>
@@ -3813,11 +3831,10 @@ function renderProgressAll() {
               <td style="text-align:right">${r.avgWeight != null ? r.avgWeight.toFixed(1) : '—'}</td>
               <td style="text-align:right">${r.maxWeight != null ? r.maxWeight : '—'}</td>
               <td style="text-align:right">${r.totalReps}</td>
-              ${changeCell(r.repChange)}
-              ${changeCell(r.weightChange, 1)}
             </tr>`).join('')}
         </tbody>
       </table>
+      </div>
     </div>`;
 
   // Tap row → drill into single-exercise progress
@@ -6739,6 +6756,11 @@ async function init() {
     renderSetsCard();
   });
   $('#saveBtn').addEventListener('click', saveCurrentWorkout);
+
+  // Re-render exercise grid when the log date changes — green "logged
+  // today" dots depend on the selected date, so picking a different day
+  // needs to refresh which exercises show as logged.
+  $('#logDate').addEventListener('change', () => renderExerciseGrid());
 
   // History pills + manual dates
   $$('#historyPills .pill').forEach(p => {
