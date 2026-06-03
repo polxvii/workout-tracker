@@ -1285,6 +1285,10 @@ select {
           <div id="cardioFormSection" style="display:none;">
             <div id="cardioReviewBanner" style="display:none; margin-bottom:12px; padding:10px 12px; background:rgba(16,185,129,0.1); border:1px solid var(--success); border-radius:6px; font-size:12px; color:var(--success);">
               ✓ <strong>Review the fields below</strong> — anything missing or wrong, just type over it. Then tap Save.
+              <div style="margin-top:8px;">
+                <button type="button" id="cardioShowOcrBtn" style="background:transparent; border:1px solid var(--success); color:var(--success); padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer; font-family:inherit;">Show raw OCR text</button>
+              </div>
+              <pre id="cardioOcrDebugText" style="display:none; margin-top:8px; padding:8px; background:var(--surface-2); border-radius:4px; color:var(--text); font-size:11px; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-word;"></pre>
             </div>
 
             <div class="form-row">
@@ -4519,6 +4523,11 @@ function parseCardioPaste() {
   const text = $('#cardioPaste').value;
   if (!text.trim()) { showToast('Paste some text first', 'error'); return; }
 
+  // Log raw OCR text so we can debug parsing problems by inspecting the
+  // console. The text is also kept verbatim in the #cardioPaste textarea
+  // (visible via the "Show raw OCR text" button in the review banner).
+  console.log('[OCR raw text]\n' + text);
+
   let filled = 0;
   const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
 
@@ -6597,6 +6606,21 @@ async function init() {
 
   $('#cardioSaveBtn').addEventListener('click', saveCardioSession);
   $('#cardioParseBtn').addEventListener('click', parseCardioPaste);
+
+  // Show raw OCR text button — useful when fields parse wrong and we
+  // need to see exactly what Tesseract read from the screenshot.
+  $('#cardioShowOcrBtn').addEventListener('click', () => {
+    const dbg = $('#cardioOcrDebugText');
+    const raw = $('#cardioPaste').value;
+    if (dbg.style.display === 'none') {
+      dbg.textContent = raw || '(no OCR text — used manual entry)';
+      dbg.style.display = 'block';
+      $('#cardioShowOcrBtn').textContent = 'Hide raw OCR text';
+    } else {
+      dbg.style.display = 'none';
+      $('#cardioShowOcrBtn').textContent = 'Show raw OCR text';
+    }
+  });
 
   // Method picker: choose Upload-screenshots OR Manual entry
   $('#cardioMethodOcrBtn').addEventListener('click', () => {
