@@ -616,7 +616,18 @@ select {
   font-size: 12px;
 }
 .progress-table.wide {
-  min-width: 520px;  /* don't squash columns below this; scroll instead */
+  min-width: 520px;
+}
+/* Freeze the Exercise column when scrolling horizontally */
+.progress-table.wide th:first-child,
+.progress-table.wide td:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--surface-1);
+  z-index: 1;
+  /* subtle right border to visually separate frozen col from scrolling cols */
+  border-right: 1px solid var(--border);
+  padding-right: 8px;
 }
 .progress-table th, .progress-table td {
   padding: 8px 5px;
