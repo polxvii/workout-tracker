@@ -623,9 +623,11 @@ select {
 .progress-table.wide td:first-child {
   position: sticky;
   left: 0;
-  background: var(--surface-1);
+  background: var(--surface);
   z-index: 1;
-  /* subtle right border to visually separate frozen col from scrolling cols */
+  min-width: 120px;
+  max-width: 150px;
+  white-space: normal;
   border-right: 1px solid var(--border);
   padding-right: 8px;
 }
