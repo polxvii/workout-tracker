@@ -1779,8 +1779,10 @@ const EXERCISES = [
   // cable pulleys). Images point at folders known to exist in the
   // free-exercise-db CDN; for entries where the DB lacks a perfect match
   // we reuse a visually similar entry as a stand-in.
-  { id: 'leg-press', image: 'Leg_Press', name: 'Leg Press', bodyPart: 'Legs', type: 'Machine',
-    desc: 'Sit in machine, feet shoulder-width on platform. Lower until knees ~90°, press back up without locking.' },
+  { id: 'leg-press', image: 'Leg_Press', name: 'Leg Press (45°)', bodyPart: 'Legs', type: 'Machine',
+    desc: 'Sled-style: feet on platform, body angled back ~45°. Lower until knees ~90°, press without locking. Heavier loads possible.' },
+  { id: 'leg-press-90', image: 'Vertical_Leg_Press', name: 'Leg Press (90°/Seated)', bodyPart: 'Legs', type: 'Machine',
+    desc: 'Seated upright, platform in front. Push platform forward extending knees, control return. More glute emphasis than 45°.' },
   { id: 'hack-squat', image: 'Hack_Squat', name: 'Hack Squat', bodyPart: 'Legs', type: 'Machine',
     desc: 'Shoulders under pads, feet on platform. Squat down keeping back flat against pad, drive up through heels.' },
   { id: 'seated-calf-raise', image: 'Standing_Barbell_Calf_Raise', name: 'Seated Calf Raise', bodyPart: 'Legs', type: 'Machine',
@@ -2272,10 +2274,17 @@ function imageUrl(key) {
   // Two URL schemes are supported:
   //   "slug:<muscle>/<slug>"  → JahelCuadrado CDN (animated GIF, anatomical)
   //   "<folder>"              → legacy free-exercise-db CDN (static JPG)
+  //
+  // For the free-db folder case we use 1.jpg (end-of-motion frame) rather
+  // than 0.jpg (start). The 1.jpg frame typically shows the muscle in its
+  // contracted state, making the exercise easier to recognise. Anatomical
+  // illustrations in the dataset usually only have a 0.jpg, but those
+  // requests fall back to 0.jpg via the onerror handler in loadPlaceholder
+  // (see imgFailed retry logic below).
   if (key.startsWith('slug:')) {
     return SLUG_BASE + key.slice(5) + '.gif';
   }
-  return IMG_BASE + encodeURIComponent(key) + '/0.jpg';
+  return IMG_BASE + encodeURIComponent(key) + '/1.jpg';
 }
 
 async function getCachedBlobUrl(folder) {
@@ -2283,35 +2292,52 @@ async function getCachedBlobUrl(folder) {
   if (imgFailed.has(folder)) return null;
   if (imgInflight.has(folder)) return imgInflight.get(folder);
 
-  const p = (async () => {
-    const url = imageUrl(folder);
+  // Try to fetch one URL; if it succeeds return a blob URL, if it 404s
+  // return null so the caller can try a different URL. Errors other than
+  // 404 (network drop, CORS) also return null. We only mark the folder
+  // as failed once we've exhausted ALL fallbacks.
+  const tryFetch = async (url) => {
+    let cache = null;
+    if ('caches' in window) {
+      try { cache = await caches.open(IMAGE_CACHE_NAME); }
+      catch (cacheErr) { cache = null; }
+    }
     try {
       let response;
-      // Try the Cache Storage API first if it appears available. Some webviews
-      // expose `window.caches` but reject every operation — wrap in its own try.
-      let cache = null;
-      if ('caches' in window) {
-        try { cache = await caches.open(IMAGE_CACHE_NAME); }
-        catch (cacheErr) { cache = null; }
-      }
       if (cache) {
         response = await cache.match(url);
         if (!response) {
           response = await fetch(url, { mode: 'cors' });
-          if (!response.ok) throw new Error('HTTP ' + response.status);
-          try { await cache.put(url, response.clone()); } catch (e) { /* ignore quota/security errors */ }
+          if (!response.ok) return null;
+          try { await cache.put(url, response.clone()); } catch (e) { /* ignore */ }
         }
       } else {
         response = await fetch(url, { mode: 'cors' });
-        if (!response.ok) throw new Error('HTTP ' + response.status);
+        if (!response.ok) return null;
       }
       const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
+      return URL.createObjectURL(blob);
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const p = (async () => {
+    try {
+      // Primary: 1.jpg (end-of-motion frame). If the folder only has 0.jpg
+      // (common for anatomical illustrations), try that as a fallback.
+      const url1 = imageUrl(folder);
+      let blobUrl = await tryFetch(url1);
+      if (!blobUrl && !folder.startsWith('slug:')) {
+        const url0 = IMG_BASE + encodeURIComponent(folder) + '/0.jpg';
+        blobUrl = await tryFetch(url0);
+      }
+      if (!blobUrl) {
+        imgFailed.add(folder);
+        return null;
+      }
       imgBlobUrls.set(folder, blobUrl);
       return blobUrl;
-    } catch (e) {
-      imgFailed.add(folder);
-      return null;
     } finally {
       imgInflight.delete(folder);
     }
