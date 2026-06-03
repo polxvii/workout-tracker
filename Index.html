@@ -618,14 +618,14 @@ select {
 .progress-table.wide {
   min-width: 520px;
 }
-/* Freeze the Exercise column when scrolling horizontally */
-.progress-table.wide th:first-child,
-.progress-table.wide td:first-child {
+/* Freeze the Exercise column for ALL progress tables */
+.progress-table th:first-child,
+.progress-table td:first-child {
   position: sticky;
   left: 0;
   background: var(--surface);
   z-index: 1;
-  min-width: 120px;
+  min-width: 110px;
   max-width: 150px;
   white-space: normal;
   border-right: 1px solid var(--border);
@@ -3186,6 +3186,7 @@ function renderHistory() {
     </div>
     <div class="card">
       <div class="card-title">Average per exercise</div>
+      <div class="progress-table-wrap">
       <table class="progress-table">
         <thead><tr><th>Exercise</th><th style="text-align:center">Sessions</th><th style="text-align:center">Avg sets</th><th style="text-align:center">Avg reps</th><th style="text-align:right">Avg wt</th></tr></thead>
         <tbody>
@@ -3202,7 +3203,7 @@ function renderHistory() {
             </tr>`).join('')}
         </tbody>
       </table>
-    </div>`;
+      </div>`;
 
   list.innerHTML = `
     <div class="card-title" style="margin: 16px 4px 8px;">All entries (${logs.length})</div>
