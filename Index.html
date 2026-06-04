@@ -13,7 +13,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Workout Tracker</title>
-<meta name="app-version" content="1.03">
+<meta name="app-version" content="1.04">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
@@ -982,7 +982,7 @@ select {
         Your data is private. Only you can access it.
       </div>
       <div style="text-align:center; font-size:10px; color:var(--text-faint); margin-top:6px; opacity:0.7;">
-        v1.03
+        v1.04
       </div>
     </div>
   </div>
@@ -1566,7 +1566,7 @@ select {
 
     <!-- VERSION FOOTER -->
     <div style="text-align:center; padding:16px 0; font-size:11px; color:var(--text-faint);">
-      Workout Tracker v1.03
+      Workout Tracker v1.04
     </div>
 
   </section>
@@ -4124,13 +4124,19 @@ function exerciseSvg(id) {
 // Uses the browser's Cache Storage API; falls back to plain network fetch
 // if not available (e.g. some private-browsing modes).
 // ============================================================
-const IMAGE_CACHE_NAME = 'workout-tracker-images-v2';
+const IMAGE_CACHE_NAME = 'workout-tracker-images-v3';
 const IMG_BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/';
 // Newer dataset that ships anatomical-illustration GIFs (Hevy-style figure
 // with highlighted muscle). Used when an exercise entry has a `slug` field
 // indicating which muscle folder + slug to fetch. Falls back to the older
 // IMG_BASE if no slug is set on the exercise.
 const SLUG_BASE = 'https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.1.0/';
+// wsrv.nl proxies + resizes images. Wrapping JC GIFs (avg 300 KB at 600px)
+// down to 300px animated WebP cuts each request to ~75 KB — 4x smaller for
+// the same on-screen appearance on mobile. Cloudflare-backed, year-long
+// cache headers, free, no auth.
+const IMG_PROXY = 'https://images.weserv.nl/?url=';
+const IMG_PROXY_PARAMS = '&w=300&output=webp&n=-1';
 
 const imgBlobUrls = new Map();   // image folder name -> blob URL (in-memory map)
 const imgFailed   = new Set();   // image folder name -> known-bad (skip retry)
@@ -4148,7 +4154,8 @@ function imageUrl(key) {
   // requests fall back to 0.jpg via the onerror handler in loadPlaceholder
   // (see imgFailed retry logic below).
   if (key.startsWith('slug:')) {
-    return SLUG_BASE + key.slice(5) + '.gif';
+    const gifUrl = SLUG_BASE + key.slice(5) + '.gif';
+    return IMG_PROXY + encodeURIComponent(gifUrl) + IMG_PROXY_PARAMS;
   }
   return IMG_BASE + encodeURIComponent(key) + '/1.jpg';
 }
