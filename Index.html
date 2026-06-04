@@ -13,7 +13,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Workout Tracker</title>
-<meta name="app-version" content="1.05">
+<meta name="app-version" content="1.06">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
@@ -982,7 +982,7 @@ select {
         Your data is private. Only you can access it.
       </div>
       <div style="text-align:center; font-size:10px; color:var(--text-faint); margin-top:6px; opacity:0.7;">
-        v1.05
+        v1.06
       </div>
     </div>
   </div>
@@ -1566,7 +1566,7 @@ select {
 
     <!-- VERSION FOOTER -->
     <div style="text-align:center; padding:16px 0; font-size:11px; color:var(--text-faint);">
-      Workout Tracker v1.05
+      Workout Tracker v1.06
     </div>
 
   </section>
@@ -4265,13 +4265,20 @@ async function loadPlaceholder(el) {
 }
 
 // Call this after rendering exercise cards to wire up lazy loading.
-function activateImagePlaceholders(rootEl) {
+// Pass { eager: true } to skip the IntersectionObserver and load every
+// placeholder immediately — needed when the cards are rendered into a
+// container that's currently hidden (display:none on an ancestor). In
+// that case IO observes zero-sized elements and never fires, even after
+// the container becomes visible (observed on iOS Safari). Cardio uses
+// eager mode because it only has ~20 cards; strength stays lazy.
+function activateImagePlaceholders(rootEl, opts) {
   if (!rootEl) rootEl = document;
   const placeholders = rootEl.querySelectorAll('[data-img-folder]:not([data-img-loaded])');
-  const observer = ensureImgObserver();
+  const eager    = opts && opts.eager;
+  const observer = eager ? null : ensureImgObserver();
   placeholders.forEach(el => {
     if (observer) observer.observe(el);
-    else loadPlaceholder(el).catch(() => {});  // no IO support — load immediately
+    else loadPlaceholder(el).catch(() => {});  // eager or no-IO: load immediately
   });
 }
 
@@ -6490,7 +6497,7 @@ function renderCardioActivityGrid() {
             <div class="exercise-img" style="height:90px;">${cardioImage(a)}</div>
             <div class="exercise-name">${escapeHtml(a.name)}</div>
           </div>`;
-        activateImagePlaceholders(grid);
+        activateImagePlaceholders(grid, { eager: true });
         return;
       }
     }
@@ -6517,7 +6524,7 @@ function renderCardioActivityGrid() {
         setTimeout(() => $('#cardioInputs').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
       });
     });
-    activateImagePlaceholders(grid);
+    activateImagePlaceholders(grid, { eager: true });
   } catch (err) {
     grid.innerHTML = '<div style="color:var(--danger); padding:12px; font-size:13px;">⚠️ Could not render activity grid: ' + escapeHtml(err.message || String(err)) + '</div>';
   }
