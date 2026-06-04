@@ -13,7 +13,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Workout Tracker</title>
-<meta name="app-version" content="1.04">
+<meta name="app-version" content="1.05">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
@@ -982,7 +982,7 @@ select {
         Your data is private. Only you can access it.
       </div>
       <div style="text-align:center; font-size:10px; color:var(--text-faint); margin-top:6px; opacity:0.7;">
-        v1.04
+        v1.05
       </div>
     </div>
   </div>
@@ -1566,7 +1566,7 @@ select {
 
     <!-- VERSION FOOTER -->
     <div style="text-align:center; padding:16px 0; font-size:11px; color:var(--text-faint);">
-      Workout Tracker v1.04
+      Workout Tracker v1.05
     </div>
 
   </section>
@@ -6135,28 +6135,33 @@ function switchStrengthSubview(name) {
 // ============================================================
 // CARDIO
 // ============================================================
+// `slug` (when present) is the JahelCuadrado cardio GIF path (without .gif).
+// Activities with no good JC match fall back to the inline SVG illustration.
 const CARDIO_ACTIVITIES = [
   // Outdoor / running family
-  { id: 'running',    name: 'Running',          units: ['km', 'mi'] },
-  { id: 'treadmill',  name: 'Treadmill',        units: ['km', 'mi'], machine: true },
-  { id: 'walking',    name: 'Walking',          units: ['km', 'mi'] },
+  { id: 'running',    name: 'Running',          units: ['km', 'mi'],        slug: 'cardio/run' },
+  { id: 'treadmill',  name: 'Treadmill',        units: ['km', 'mi'], machine: true, slug: 'cardio/walking-on-incline-treadmill' },
+  { id: 'walking',    name: 'Walking',          units: ['km', 'mi'],        slug: 'cardio/back-and-forth-step' },
   { id: 'hiking',     name: 'Hiking',           units: ['km', 'mi'] },
   // Cycling family
   { id: 'cycling',    name: 'Cycling',          units: ['km', 'mi'] },
-  { id: 'spinning',   name: 'Indoor Bike',      units: ['km', 'mi'], machine: true },
+  { id: 'spinning',   name: 'Indoor Bike',      units: ['km', 'mi'], machine: true, slug: 'cardio/stationary-bike-run-v-3' },
   // Machines
   { id: 'rowing',     name: 'Rowing',           units: ['m', 'km'], machine: true },
-  { id: 'elliptical', name: 'Elliptical',       units: ['km', 'mi'], machine: true },
-  { id: 'stair',      name: 'StairMaster',      units: ['floors', 'min'], machine: true },
+  { id: 'elliptical', name: 'Elliptical',       units: ['km', 'mi'], machine: true, slug: 'cardio/walk-elliptical-cross-trainer' },
+  { id: 'stair',      name: 'StairMaster',      units: ['floors', 'min'], machine: true, slug: 'cardio/walking-on-stepmill' },
   // Water
   { id: 'swimming',   name: 'Swimming',         units: ['m', 'laps'] },
   // Plyo / functional
-  { id: 'jumprope',   name: 'Jump Rope',        units: ['min', 'reps'] },
-  { id: 'boxjump',    name: 'Box Jumps',        units: ['reps', 'min'] },
+  { id: 'jumprope',   name: 'Jump Rope',        units: ['min', 'reps'],     slug: 'cardio/jump-rope' },
+  { id: 'boxjump',    name: 'Box Jumps',        units: ['reps', 'min'],     slug: 'cardio/semi-squat-jump-male' },
+  { id: 'burpees',    name: 'Burpees',          units: ['reps', 'min'],     slug: 'cardio/burpee' },
+  { id: 'mtnclimber', name: 'Mountain Climbers',units: ['reps', 'min'],     slug: 'cardio/mountain-climber' },
+  { id: 'bearcrawl',  name: 'Bear Crawl',       units: ['min', 'm'],        slug: 'cardio/bear-crawl' },
   { id: 'battlerope', name: 'Battle Rope',      units: ['min', 'sets'] },
   { id: 'boxing',     name: 'Boxing',           units: ['min', 'rounds'] },
   // Other generic categories
-  { id: 'hiit',       name: 'HIIT',             units: ['min'] },
+  { id: 'hiit',       name: 'HIIT',             units: ['min'],             slug: 'cardio/burpee' },
   { id: 'yoga',       name: 'Yoga / Mobility',  units: ['min'] },
   { id: 'other',      name: 'Other',            units: ['km', 'mi'] },
 ];
@@ -6452,12 +6457,18 @@ function cardioImageSvg(activity) {
   </svg>`;
 }
 
-// Public cardioImage — returns the SVG illustration directly. We tried lazy-
-// loading real photos from the free-exercise-db CDN, but most cardio activities
-// don't have matching folders there, so the photos were either missing or
-// showed unrelated exercises. SVG-only gives a consistent, recognisable look.
+// Public cardioImage — uses the same lazy-load pattern as strength when the
+// activity has a JC slug, so cardio cards visually match the strength grid.
+// Activities without a slug (rowing, swimming, boxing, yoga, hiking, cycling,
+// other) fall back to the inline SVG illustration.
 function cardioImage(activity) {
-  return cardioImageSvg(activity);
+  if (!activity.slug) return cardioImageSvg(activity);
+  const key = 'slug:' + activity.slug;
+  const placeholderSrc = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+  return `<div class="img-holder" data-img-folder="${escapeHtml(key)}" style="width:100%; height:100%; position:relative;">
+    <img src="${placeholderSrc}" alt="${escapeHtml(activity.name)}" decoding="async" style="width:100%; height:100%; object-fit:cover; background:var(--surface-2);">
+    <span class="img-fallback" style="display:none; width:100%; height:100%; position:absolute; inset:0;">${cardioImageSvg(activity)}</span>
+  </div>`;
 }
 
 function renderCardioActivityGrid() {
