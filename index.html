@@ -5016,6 +5016,11 @@ function exerciseById(id) { return EXERCISES.find(e => e.id === id); }
 // numeric weight > 0. Caller is responsible for rendering "—" / hiding
 // the PR badge in that case.
 function getPR(exerciseId) {
+  // PR = the heaviest weight ever logged for this exercise. We don't
+  // track reps here — the user explicitly wants weight-only because
+  // the goal is "how heavy can I go", not "what's my best rep range".
+  // Returns { weight, date } where date is when the PR was first set,
+  // or null when nothing has been logged.
   let best = null;
   for (const log of state.logs) {
     // In-memory log shape (flat): { id, date, exerciseId, sets }
@@ -5026,28 +5031,24 @@ function getPR(exerciseId) {
     for (const s of sets) {
       const w = parseFloat(s.weight);
       if (!isFinite(w) || w <= 0) continue;
-      const reps = parseInt(s.reps, 10) || 0;
-      if (!best || w > best.weight || (w === best.weight && reps > best.reps)) {
-        best = { weight: w, reps, date: log.date };
+      if (!best || w > best.weight) {
+        best = { weight: w, date: log.date };
       }
     }
   }
   return best;
 }
 
-// Returns true if the given set (in a specific log) ties or beats the
-// all-time PR for that exercise — used to render a ⭐ badge in History.
+// Returns true if the given set's weight ties the all-time PR weight
+// for that exercise. Used to render a ⭐ badge in History — every set
+// that hit the heaviest weight earns the star, regardless of reps.
 function isSetPR(log, setIdx) {
   if (!log.exerciseId) return false;
   const pr = getPR(log.exerciseId);
   if (!pr) return false;
   const s = (log.sets || [])[setIdx];
   if (!s) return false;
-  const w = parseFloat(s.weight);
-  const reps = parseInt(s.reps, 10) || 0;
-  // Tied with PR (same weight AND same reps) — count as PR too. Multiple
-  // sessions hitting the same heaviest weight all get the star.
-  return w === pr.weight && reps === pr.reps;
+  return parseFloat(s.weight) === pr.weight;
 }
 
 // ============================================================
@@ -5351,7 +5352,7 @@ function renderSetsCard() {
   // it obvious what bar you're chasing this session. Hidden if no PR yet.
   const pr = getPR(ex.id);
   const prBadge = pr
-    ? ` <span style="font-size:12px; font-weight:500; color:var(--text-dim); margin-left:6px;">· PR ${pr.weight} × ${pr.reps}</span>`
+    ? ` <span style="font-size:12px; font-weight:500; color:var(--text-dim); margin-left:6px;">· PR ${pr.weight}</span>`
     : '';
   $('#setsCardTitle').innerHTML = escapeHtml(ex.name) + ' — sets' + prBadge;
 
@@ -5932,7 +5933,7 @@ function renderProgress() {
         <div>
           <div style="font-weight:600; font-size:16px;">${escapeHtml(ex.name)}</div>
           <div class="log-meta">${escapeHtml(ex.bodyPart)} · ${escapeHtml(ex.type)} · ${totalSessions} session${totalSessions === 1 ? '' : 's'}</div>
-          ${pr ? `<div style="margin-top:4px; font-size:13px; color:var(--primary); font-weight:600;">⭐ PR ${pr.weight} × ${pr.reps} <span style="color:var(--text-faint); font-weight:400;">on ${formatDate(pr.date)}</span></div>` : ''}
+          ${pr ? `<div style="margin-top:4px; font-size:13px; color:var(--primary); font-weight:600;">⭐ PR ${pr.weight} <span style="color:var(--text-faint); font-weight:400;">on ${formatDate(pr.date)}</span></div>` : ''}
         </div>
       </div>
 
@@ -6240,7 +6241,7 @@ function renderProgressAll() {
               <td style="text-align:center">${r.avgReps.toFixed(1)}</td>
               <td style="text-align:right">${r.avgWeight != null ? r.avgWeight.toFixed(1) : '—'}</td>
               <td style="text-align:right">${r.maxWeight != null ? r.maxWeight : '—'}</td>
-              <td style="text-align:right; color:var(--primary); font-weight:600;">${pr ? pr.weight + '×' + pr.reps : '—'}</td>
+              <td style="text-align:right; color:var(--primary); font-weight:600;">${pr ? pr.weight : '—'}</td>
               <td style="text-align:right">${r.totalReps}</td>
             </tr>`;
           }).join('')}
