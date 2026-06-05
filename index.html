@@ -317,13 +317,38 @@ body { padding-bottom: 80px; }
   user-select: none;
 }
 .ms-option:hover { background: var(--surface-2); }
+/* Custom checkbox so the checkmark is clearly visible on dark theme —
+   iOS Safari's accent-color rendering is unreliable. Matches the
+   "Keep me signed in" pattern: square with 2px accent border, fills
+   accent + shows a white check when checked. */
 .ms-option input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--primary);
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--accent, var(--primary));
+  border-radius: 4px;
+  background: transparent;
   cursor: pointer;
   margin: 0;
   flex-shrink: 0;
+  position: relative;
+  transition: background 0.12s, border-color 0.12s;
+}
+.ms-option input[type="checkbox"]:checked {
+  background: var(--accent, var(--primary));
+  border-color: var(--accent, var(--primary));
+}
+.ms-option input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 0px;
+  width: 5px;
+  height: 10px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 .ms-clear {
   display: block;
