@@ -2968,7 +2968,7 @@ const EXERCISES = [
   },
   {
     id: 'cb-one-arm-front-raise',
-    name: 'Single Cable Front Raise',
+    name: 'Cable Front Shoulder Raise',
     bodyPart: 'Shoulders',
     type: 'Cable',
     primaryMuscle: 'Shoulders (front)',
@@ -5861,21 +5861,26 @@ function renderSetsCard() {
   // Title + PR badge. PR (max weight ever logged for this exercise) makes
   // it obvious what bar you're chasing this session. Hidden if no PR yet.
   const pr = getPR(ex.id);
-  const prBadge = pr
-    ? ` <span style="font-size:12px; font-weight:500; color:var(--text-dim); margin-left:6px;">· PR ${pr.weight}</span>`
-    : '';
   // Show "↩ continuing" + "New session" only when we loaded sets from today's log
   // AND the user hasn't explicitly started a new session yet.
   const today2 = $('#logDate').value || todayISO();
   const todayLogCount = state.logs.filter(l => l.exerciseId === ex.id && l.date === today2).length;
   const showContinue = todayLogCount > 0 && !isNewSession;
   const continueBadge = showContinue
-    ? ` <span style="font-size:11px; color:var(--primary); margin-left:6px;">↩ continuing</span>`
+    ? `<span style="color:var(--primary);">↩ continuing</span>`
     : '';
   const newSessionBtn = showContinue
-    ? ` <button type="button" id="newSessionBtn" style="font-size:11px; background:none; border:none; color:var(--text-faint); cursor:pointer; font-family:inherit; margin-left:8px; text-decoration:underline;">New session</button>`
+    ? `<button type="button" id="newSessionBtn" style="background:none; border:none; color:var(--text-faint); cursor:pointer; font-family:inherit; margin-left:8px; text-decoration:underline; font-size:inherit;">New session</button>`
     : '';
-  $('#setsCardTitle').innerHTML = escapeHtml(ex.name) + ' — sets' + prBadge + continueBadge + newSessionBtn;
+
+  // PR + badges always on a second line so long exercise names don't cause wrapping
+  const subLine = (pr || showContinue)
+    ? `<div style="font-size:12px; font-weight:400; color:var(--text-dim); margin-top:2px; display:flex; align-items:center; gap:8px;">
+         ${pr ? `<span style="font-weight:600; color:var(--text-dim);">PR ${pr.weight}</span>` : ''}
+         ${continueBadge}${newSessionBtn}
+       </div>`
+    : '';
+  $('#setsCardTitle').innerHTML = escapeHtml(ex.name) + ' — sets' + subLine;
   const nsBtn = $('#newSessionBtn');
   if (nsBtn) {
     nsBtn.addEventListener('click', (e) => {
