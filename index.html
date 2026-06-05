@@ -5260,6 +5260,40 @@ function rtFmt(s) {
   return m > 0 ? `${m}:${sec}` : `0:${sec}`;
 }
 
+// Play a short beep using Web Audio API — works on iOS Safari where
+// navigator.vibrate() is not supported. freq in Hz, dur in ms.
+function rtBeep(freq = 880, dur = 180, vol = 0.4) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur / 1000);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + dur / 1000 + 0.05);
+    // Auto-close AudioContext after the sound ends to avoid resource leak
+    osc.onended = () => { try { ctx.close(); } catch (_) {} };
+  } catch (_) {}
+}
+
+function rtAlert(atEnd = false) {
+  if (atEnd) {
+    // Three short beeps (done!)
+    rtBeep(880, 150, 0.5);
+    setTimeout(() => rtBeep(880, 150, 0.5), 200);
+    setTimeout(() => rtBeep(1100, 300, 0.5), 400);
+    try { navigator.vibrate && navigator.vibrate([200, 100, 200, 100, 400]); } catch (_) {}
+  } else {
+    // One lower beep at 10 s warning
+    rtBeep(660, 250, 0.4);
+    try { navigator.vibrate && navigator.vibrate([150]); } catch (_) {}
+  }
+}
+
 function rtStart() {
   const secs = rtGetSeconds();
   if (!secs) return;
@@ -5274,11 +5308,13 @@ function rtStart() {
   rtInterval = setInterval(() => {
     rtRemaining--;
     display.textContent = rtFmt(rtRemaining);
-    if (rtRemaining <= 10) display.classList.add('warning');
+    if (rtRemaining === 10) {
+      display.classList.add('warning');
+      rtAlert(false);   // warning beep at 10 s
+    }
     if (rtRemaining <= 0) {
       rtStop();
-      // Vibrate on iOS PWA when timer ends (if supported)
-      try { navigator.vibrate && navigator.vibrate([300, 100, 300]); } catch(_) {}
+      rtAlert(true);    // done: 3-beep + vibrate
     }
   }, 1000);
 }
