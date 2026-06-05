@@ -5282,10 +5282,11 @@ function rtBeep(freq = 880, dur = 180, vol = 0.4) {
 
 function rtAlert(atEnd = false) {
   if (atEnd) {
-    // Done: two beeps — same pattern as 10s but higher pitch + louder
-    rtBeep(880, 300, 0.6);
-    setTimeout(() => rtBeep(1100, 400, 0.6), 400);
-    try { navigator.vibrate && navigator.vibrate([200, 150, 400]); } catch (_) {}
+    // Done: 3 beeps, escalating pitch + loud so it's clearly distinct from 10s
+    rtBeep(880, 250, 0.8);
+    setTimeout(() => rtBeep(1050, 250, 0.8), 320);
+    setTimeout(() => rtBeep(1320, 450, 0.9), 640);
+    try { navigator.vibrate && navigator.vibrate([200, 150, 200, 150, 400]); } catch (_) {}
   } else {
     // 10 s warning: one lower beep
     rtBeep(660, 250, 0.4);
@@ -5312,9 +5313,8 @@ function rtStart() {
       rtAlert(false);   // warning beep at 10 s
     }
     if (rtRemaining <= 0) {
-      rtStop(false);    // stop counting, keep banner at 0:00
-      rtAlert(true);    // beep + vibrate
-      // Show "Done" label so user knows it's finished
+      rtAlert(true);    // beep FIRST before anything else
+      rtStop(false);    // then stop counting, keep banner at 0:00
       const lbl = document.querySelector('#restTimerBanner .rt-label');
       if (lbl) lbl.textContent = '✓ Rest done';
     }
