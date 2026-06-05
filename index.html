@@ -6193,9 +6193,14 @@ function renderProgressAll() {
     return `<td style="text-align:right; color:${color}">${sign}${decimals ? v.toFixed(decimals) : v}</td>`;
   };
 
+  // Same compression rule as the collapsed-filter summary: only mention
+  // body part / type when the user has actually narrowed down (i.e. not
+  // when every checkbox is on, which behaves identically to all-off).
+  const bpTitleHint = (bpSet.size > 0 && bpSet.size < BODY_PARTS.length) ? ' · ' + [...bpSet].join(', ') : '';
+  const tpTitleHint = (tpSet.size > 0 && tpSet.size < EQUIPMENT_TYPES.length) ? ' · ' + [...tpSet].join(', ') : '';
   content.innerHTML = `
     <div class="card">
-      <div class="card-title">All exercises — ${escapeHtml(periodLabel)}${bp ? ' · ' + escapeHtml(bp) : ''}${tp ? ' · ' + escapeHtml(tp) : ''}</div>
+      <div class="card-title">All exercises — ${escapeHtml(periodLabel)}${escapeHtml(bpTitleHint)}${escapeHtml(tpTitleHint)}</div>
       <div class="stats-grid">
         <div class="stat-box"><div class="stat-label">Exercises</div><div class="stat-value">${rows.length}</div></div>
         <div class="stat-box"><div class="stat-label">Workout days</div><div class="stat-value">${totalDays}</div></div>
