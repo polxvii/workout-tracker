@@ -532,6 +532,37 @@ select {
   border-color: var(--primary);
 }
 
+/* Delete-custom button — same shape/position as the info button but
+   on the opposite corner (top-right). Only rendered on cards whose
+   exercise has isCustom: true. */
+.exercise-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  z-index: 2;
+  font-family: inherit;
+  line-height: 1;
+  touch-action: manipulation;
+}
+.exercise-delete-btn:hover, .exercise-delete-btn:active {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
 /* Toggle tile — used in Settings → Export "What to include" */
 .toggle-tile {
   display: flex;
@@ -5416,6 +5447,7 @@ function renderExerciseGrid() {
   grid.innerHTML = filtered.map(e => `
     <div class="exercise-card ${loggedIds.has(e.id) ? 'has-data' : ''}" data-id="${e.id}">
       <button class="exercise-info-btn" data-info="${e.id}" aria-label="Show details for ${escapeHtml(e.name)}" title="Show details">ⓘ</button>
+      ${e.isCustom ? `<button class="exercise-delete-btn" data-delete-custom="${e.id}" aria-label="Delete custom exercise" title="Delete">×</button>` : ''}
       <div class="exercise-img">${exerciseImage(e.id)}</div>
       <div class="exercise-name">${escapeHtml(e.name)}</div>
       <div class="exercise-meta">${escapeHtml(e.bodyPart)} · ${escapeHtml(e.type)}</div>
@@ -5428,6 +5460,13 @@ function renderExerciseGrid() {
     btn.addEventListener('click', e => {
       e.stopPropagation();
       showDetail(btn.dataset.info, 'strength');
+    });
+  });
+  // × button on custom-exercise cards: confirm-and-cascade-delete.
+  grid.querySelectorAll('[data-delete-custom]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      deleteCustomExercise(btn.dataset.deleteCustom);
     });
   });
   grid.querySelector('[data-add-custom="exercise"]').addEventListener('click', () => openCustomExerciseModal());
@@ -5801,6 +5840,46 @@ function saveCustomExercise() {
   renderExerciseGrid();
   renderSetsCard();
   showToast('Added "' + name + '"');
+}
+
+// Delete a user-added exercise + every log that references it. The
+// referenced-log check is what makes deletion an "are you sure" — once
+// the exercise is gone the logs would render as "Unknown exercise".
+function deleteCustomExercise(id) {
+  const ex = state.customExercises.find(e => e.id === id);
+  if (!ex) return;
+  const linkedLogs = state.logs.filter(l => l.exerciseId === id);
+  const tail = linkedLogs.length
+    ? ` and its ${linkedLogs.length} log${linkedLogs.length === 1 ? '' : 's'} (history + progress entries will disappear)`
+    : '';
+  if (!confirm(`Delete "${ex.name}"${tail}? This can't be undone.`)) return;
+  state.customExercises = state.customExercises.filter(e => e.id !== id);
+  state.logs = state.logs.filter(l => l.exerciseId !== id);
+  if (state.selectedExercise === id) state.selectedExercise = null;
+  saveState();
+  renderExerciseGrid();
+  renderSetsCard();
+  populateProgressExercises();
+  showToast('Deleted "' + ex.name + '"');
+}
+
+// Mirror of deleteCustomExercise for cardio. Cardio logs key off
+// log.activity (not exerciseId) so the cleanup matches that field.
+function deleteCustomActivity(id) {
+  const a = state.customActivities.find(x => x.id === id);
+  if (!a) return;
+  const linkedLogs = state.logs.filter(l => l.activity === id);
+  const tail = linkedLogs.length
+    ? ` and its ${linkedLogs.length} log${linkedLogs.length === 1 ? '' : 's'} (history + progress entries will disappear)`
+    : '';
+  if (!confirm(`Delete "${a.name}"${tail}? This can't be undone.`)) return;
+  state.customActivities = state.customActivities.filter(x => x.id !== id);
+  state.logs = state.logs.filter(l => l.activity !== id);
+  if (selectedCardioActivity === id) selectedCardioActivity = null;
+  saveState();
+  renderCardioActivityGrid();
+  populateCardioActivitySelects();
+  showToast('Deleted "' + a.name + '"');
 }
 
 function openCustomCardioModal() {
@@ -7255,6 +7334,7 @@ function renderCardioActivityGrid() {
       </div>`;
     grid.innerHTML = allCardioActivities().map(a => `
       <div class="exercise-card ${selectedCardioActivity === a.id ? 'selected' : ''}" data-activity="${a.id}">
+        ${a.isCustom ? `<button class="exercise-delete-btn" data-delete-custom="${a.id}" aria-label="Delete custom activity" title="Delete">×</button>` : ''}
         <div class="exercise-img">${cardioImage(a)}</div>
         <div class="exercise-name">${escapeHtml(a.name)}</div>
       </div>
@@ -7270,6 +7350,12 @@ function renderCardioActivityGrid() {
         $('#cardioInputs').style.display = 'block';
         showCardioStage('picker');
         setTimeout(() => $('#cardioInputs').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      });
+    });
+    grid.querySelectorAll('[data-delete-custom]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        deleteCustomActivity(btn.dataset.deleteCustom);
       });
     });
     grid.querySelector('[data-add-custom="cardio"]').addEventListener('click', () => openCustomCardioModal());
