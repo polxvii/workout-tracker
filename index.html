@@ -5282,13 +5282,12 @@ function rtBeep(freq = 880, dur = 180, vol = 0.4) {
 
 function rtAlert(atEnd = false) {
   if (atEnd) {
-    // Three short beeps (done!)
-    rtBeep(880, 150, 0.5);
-    setTimeout(() => rtBeep(880, 150, 0.5), 200);
-    setTimeout(() => rtBeep(1100, 300, 0.5), 400);
-    try { navigator.vibrate && navigator.vibrate([200, 100, 200, 100, 400]); } catch (_) {}
+    // Done: two beeps — same pattern as 10s but higher pitch + louder
+    rtBeep(880, 300, 0.6);
+    setTimeout(() => rtBeep(1100, 400, 0.6), 400);
+    try { navigator.vibrate && navigator.vibrate([200, 150, 400]); } catch (_) {}
   } else {
-    // One lower beep at 10 s warning
+    // 10 s warning: one lower beep
     rtBeep(660, 250, 0.4);
     try { navigator.vibrate && navigator.vibrate([150]); } catch (_) {}
   }
@@ -5313,18 +5312,26 @@ function rtStart() {
       rtAlert(false);   // warning beep at 10 s
     }
     if (rtRemaining <= 0) {
-      rtStop();
-      rtAlert(true);    // done: 3-beep + vibrate
+      rtStop(false);    // stop counting, keep banner at 0:00
+      rtAlert(true);    // beep + vibrate
+      // Show "Done" label so user knows it's finished
+      const lbl = document.querySelector('#restTimerBanner .rt-label');
+      if (lbl) lbl.textContent = '✓ Rest done';
     }
   }, 1000);
 }
 
-function rtStop() {
+// rtStop(hide) — stop the countdown interval.
+// hide=true  → also hide the banner (used by Skip + Off chip)
+// hide=false → keep banner visible at 0:00 (timer done, user dismisses manually)
+function rtStop(hide = true) {
   if (rtInterval) { clearInterval(rtInterval); rtInterval = null; }
-  const banner = $('#restTimerBanner');
-  if (banner) banner.style.display = 'none';
-  const display = $('#restTimerCount');
-  if (display) display.classList.remove('warning');
+  if (hide) {
+    const banner = $('#restTimerBanner');
+    if (banner) banner.style.display = 'none';
+    const display = $('#restTimerCount');
+    if (display) display.classList.remove('warning');
+  }
 }
 
 // Persist rest timer preference in localStorage (not Supabase — device-level UX pref)
@@ -5360,7 +5367,10 @@ function rtWireChips() {
       c.classList.add('active');
       rtSetting = c.dataset.rt === '0' ? 0 : (c.dataset.rt === 'manual' ? 'manual' : Number(c.dataset.rt));
       manualInput.style.display = rtSetting === 'manual' ? 'inline-block' : 'none';
-      rtStop(); // stop any running timer if user changes preference
+      rtStop(true); // stop + hide banner when user changes preference
+      // Reset label in case timer had finished
+      const lbl = document.querySelector('#restTimerBanner .rt-label');
+      if (lbl) lbl.textContent = '⏱ Rest';
       rtSavePref();
     });
   });
@@ -9967,7 +9977,11 @@ async function init() {
   // Rest timer: load saved preference and wire UI
   rtLoadPref();
   rtWireChips();
-  $('#restTimerSkipBtn').addEventListener('click', rtStop);
+  $('#restTimerSkipBtn').addEventListener('click', () => {
+    rtStop(true);
+    const lbl = document.querySelector('#restTimerBanner .rt-label');
+    if (lbl) lbl.textContent = '⏱ Rest';
+  });
   // "⏱ Rest" button in sets card — manually triggered by user after finishing a set
   $('#startRestBtn').addEventListener('click', () => {
     if (rtGetSeconds() === 0) {
