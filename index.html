@@ -1358,9 +1358,10 @@ select {
       </div>
       <div id="setsContainer"></div>
 
-      <button class="btn btn-secondary" id="addSetBtn" style="margin-top: 8px;">
-        + Add set
-      </button>
+      <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+        <button class="btn btn-secondary" id="addSetBtn" style="flex:1;">+ Add set</button>
+        <button class="btn btn-secondary" id="startRestBtn" style="flex:1;" title="Start rest countdown">⏱ Rest</button>
+      </div>
 
       <div style="margin-top: 14px;">
         <button class="btn btn-primary" id="saveBtn">✓ Save workout</button>
@@ -5811,9 +5812,6 @@ function saveCurrentWorkout() {
 
   showToast(`Saved — ${validSets.length} set${validSets.length === 1 ? '' : 's'}`);
 
-  // Start rest timer (no-op when Off is selected)
-  rtStart();
-
   currentSets = [{ reps: '', weight: '', note: '' }];
   state.selectedExercise = null;
   renderExerciseGrid();
@@ -9934,6 +9932,14 @@ async function init() {
   rtLoadPref();
   rtWireChips();
   $('#restTimerSkipBtn').addEventListener('click', rtStop);
+  // "⏱ Rest" button in sets card — manually triggered by user after finishing a set
+  $('#startRestBtn').addEventListener('click', () => {
+    if (rtGetSeconds() === 0) {
+      showToast('Rest timer is Off — pick a duration above', 'error');
+      return;
+    }
+    rtStart();
+  });
 
   populateBodyPartSelects();
   populateTypeSelects();
