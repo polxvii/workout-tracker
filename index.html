@@ -6600,6 +6600,50 @@ const STRETCHES = [
   { id: 'str-hips-flexor',          name: 'Hip Flexor Stretch',           bodyPart: 'Hips',      muscles: 'Hip Flexors, Iliopsoas',              slug: 'glutes/exercise-ball-hip-flexor-stretch' },
   { id: 'str-hips-frog',            name: 'Frog Stretch',                 bodyPart: 'Hips',      muscles: 'Hip Adductors, Groin',                slug: 'glutes/rocking-frog-stretch' },
   { id: 'str-hips-glute-lying',     name: 'Lying Glute Stretch',          bodyPart: 'Hips',      muscles: 'Glutes',                              slug: 'glutes/assisted-lying-glutes-stretch' },
+  // --- Additional stretches (all slugs HEAD-checked 200) ---
+  // Chest
+  { id: 'str-chest-ball',          name: 'Chest Stretch (Ball)',          bodyPart: 'Chest',     muscles: 'Pectorals',                           slug: 'pectorals/chest-stretch-with-exercise-ball' },
+  { id: 'str-chest-ball2',         name: 'Pectoralis Stretch (Seated)',   bodyPart: 'Chest',     muscles: 'Pectorals, Anterior Deltoid',         slug: 'pectorals/assisted-seated-pectoralis-major-stretch-with-stability-ball' },
+  { id: 'str-sh-roller1',          name: 'Shoulder Flexor Stretch',       bodyPart: 'Shoulders', muscles: 'Anterior Deltoid, Pectorals',         slug: 'pectorals/roller-seated-shoulder-flexor-depresor-retractor' },
+  { id: 'str-sh-roller2',          name: 'Single-Leg Shoulder Flexor',    bodyPart: 'Shoulders', muscles: 'Anterior Deltoid, Pectorals',         slug: 'pectorals/roller-seated-single-leg-shoulder-flexor-depresor-retractor' },
+  // Back
+  { id: 'str-back-pec',            name: 'Back & Pec Stretch',            bodyPart: 'Back',      muscles: 'Lats, Pectorals',                     slug: 'lats/back-pec-stretch' },
+  { id: 'str-back-ball-lat',       name: 'Ball Lat Stretch',              bodyPart: 'Back',      muscles: 'Latissimus Dorsi',                    slug: 'lats/exercise-ball-lat-stretch' },
+  { id: 'str-back-ball-pyramid',   name: 'Ball Lower Back Pyramid',       bodyPart: 'Back',      muscles: 'Lower Back, Lats',                    slug: 'lats/exercise-ball-lower-back-stretch-pyramid' },
+  { id: 'str-back-ball-side',      name: 'Ball Side Lat Stretch',         bodyPart: 'Back',      muscles: 'Lats, Obliques',                      slug: 'lats/exercise-ball-lying-side-lat-stretch' },
+  { id: 'str-back-roller-side',    name: 'Roller Side Lat Stretch',       bodyPart: 'Back',      muscles: 'Lats, IT Band',                       slug: 'lats/roller-side-lat-stretch' },
+  { id: 'str-back-side-lying',     name: 'Side-Lying Floor Stretch',      bodyPart: 'Back',      muscles: 'Lats, Obliques',                      slug: 'lats/side-lying-floor-stretch' },
+  // Shoulders (neck)
+  { id: 'str-sh-neck-side',        name: 'Neck Side Stretch',             bodyPart: 'Shoulders', muscles: 'Levator Scapulae, Trapezius',         slug: 'levator-scapulae/neck-side-stretch' },
+  { id: 'str-sh-neck-push',        name: 'Side Push Neck Stretch',        bodyPart: 'Shoulders', muscles: 'Levator Scapulae, Neck',              slug: 'levator-scapulae/side-push-neck-stretch' },
+  // Arms
+  { id: 'str-arms-wrist',          name: 'Wrist Pull Stretch',            bodyPart: 'Arms',      muscles: 'Wrist Flexors, Forearms',             slug: 'forearms/side-wrist-pull-stretch' },
+  // Core (roller ab exercises double as core stretches)
+  { id: 'str-core-rollout',        name: 'Ab Wheel Rollout',              bodyPart: 'Core',      muscles: 'Abs, Lats, Hip Flexors',              slug: 'abs/wheel-rollerout' },
+  { id: 'str-core-saw',            name: 'Roller Body Saw',               bodyPart: 'Core',      muscles: 'Core, Shoulders',                     slug: 'abs/roller-body-saw' },
+  // Hips
+  { id: 'str-hips-glute2',         name: 'Glute & Piriformis Stretch',    bodyPart: 'Hips',      muscles: 'Glutes, Piriformis',                  slug: 'glutes/assisted-lying-gluteus-and-piriformis-stretch' },
+  { id: 'str-hips-roller-lat',     name: 'Roller Hip-Lat Stretch',        bodyPart: 'Hips',      muscles: 'Hip Flexors, Lats',                   slug: 'glutes/roller-hip-lat-stretch' },
+  { id: 'str-hips-roller',         name: 'Roller Hip Stretch',            bodyPart: 'Hips',      muscles: 'Hip Flexors, Glutes',                 slug: 'glutes/roller-hip-stretch' },
+  { id: 'str-hips-lunge',          name: 'Weighted Stretch Lunge',        bodyPart: 'Hips',      muscles: 'Hip Flexors, Quads',                  slug: 'glutes/weighted-stretch-lunge' },
+  { id: 'str-hips-adductor',       name: 'Side-Lying Adductor Stretch',   bodyPart: 'Hips',      muscles: 'Hip Adductors, Groin',                slug: 'adductors/assisted-side-lying-adductor-stretch' },
+  // Legs — more hamstring
+  { id: 'str-legs-ham-ball',       name: 'Ball Hamstring Stretch',        bodyPart: 'Legs',      muscles: 'Hamstrings',                          slug: 'hamstrings/exercise-ball-seated-hamstring-stretch' },
+  { id: 'str-legs-ham-leg-up',     name: 'Leg-Up Hamstring Stretch',      bodyPart: 'Legs',      muscles: 'Hamstrings',                          slug: 'hamstrings/leg-up-hamstring-stretch' },
+  { id: 'str-legs-ham-strap',      name: 'Hamstring & Calf Stretch (Strap)', bodyPart: 'Legs',   muscles: 'Hamstrings, Calves',                  slug: 'hamstrings/standing-hamstring-and-calf-stretch-with-strap' },
+  // Legs — more quads
+  { id: 'str-legs-quad2',          name: 'All-Fours Squat Stretch',       bodyPart: 'Legs',      muscles: 'Quads, Hip Flexors, Ankles',          slug: 'quads/all-fours-squad-stretch' },
+  { id: 'str-legs-quad-prone',     name: 'Prone Quad Stretch',            bodyPart: 'Legs',      muscles: 'Quadriceps',                          slug: 'quads/assisted-prone-lying-quads-stretch' },
+  { id: 'str-legs-quad-chair',     name: 'Chair Quad Stretch',            bodyPart: 'Legs',      muscles: 'Quadriceps, Hip Flexors',             slug: 'quads/chair-leg-extended-stretch' },
+  { id: 'str-legs-quad-hip',       name: 'Hip Flexor & Quad Stretch',     bodyPart: 'Legs',      muscles: 'Quads, Hip Flexors',                  slug: 'quads/intermediate-hip-flexor-and-quad-stretch' },
+  // quads/assisted-prone-rectus-femoris-stretch → 404 at JC CDN, removed
+  // Legs — more calves
+  { id: 'str-legs-calf-wall',      name: 'Calf Stretch (Wall Push)',      bodyPart: 'Legs',      muscles: 'Gastrocnemius',                       slug: 'calves/calf-push-stretch-with-hands-against-wall' },
+  { id: 'str-legs-calf-wall2',     name: 'Calf Stretch (Hands on Wall)',  bodyPart: 'Legs',      muscles: 'Gastrocnemius, Soleus',               slug: 'calves/calf-stretch-with-hands-against-wall' },
+  { id: 'str-legs-calf-rope',      name: 'Calf Stretch with Rope',        bodyPart: 'Legs',      muscles: 'Gastrocnemius, Soleus',               slug: 'calves/calf-stretch-with-rope' },
+  { id: 'str-legs-calf-lying',     name: 'Lying Calf Stretch',            bodyPart: 'Legs',      muscles: 'Gastrocnemius',                       slug: 'calves/assisted-lying-calves-stretch' },
+  { id: 'str-legs-peroneals',      name: 'Peroneals Stretch',             bodyPart: 'Legs',      muscles: 'Peroneals, Outer Calf',               slug: 'calves/peroneals-stretch' },
+  { id: 'str-legs-tibialis',       name: 'Tibialis Stretch',              bodyPart: 'Legs',      muscles: 'Tibialis Anterior',                   slug: 'calves/posterior-tibialis-stretch' },
 ];
 
 const STRETCH_BODY_PARTS = [...new Set(STRETCHES.map(s => s.bodyPart))].sort();
