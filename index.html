@@ -1673,7 +1673,9 @@ select {
       <div id="exportPreview" style="font-size:12px; color:var(--text-faint); margin-bottom:10px;">Preview will appear here…</div>
 
       <button class="btn btn-primary" id="exportCsvBtn" style="margin-bottom:8px;">📊 Export as CSV</button>
-      <button class="btn btn-secondary" id="exportJsonBtn">📥 Export as JSON (full backup)</button>
+      <button class="btn btn-secondary" id="exportJsonBtn" style="margin-bottom:8px;">📥 Export as JSON (full backup)</button>
+      <button class="btn btn-secondary" id="shareBackupBtn">✉️ Send backup file to email</button>
+      <div id="shareBackupHint" style="display:none; font-size:12px; color:var(--text-faint); margin-top:8px;">Your device's share sheet will open — tap Mail (or any app) to send the file.</div>
     </div>
 
     <!-- IMPORT -->
@@ -6812,6 +6814,45 @@ function triggerDownload(filename, content, mimeType) {
   URL.revokeObjectURL(url);
 }
 
+// Share backup via Web Share API (iOS: opens share sheet → Mail/AirDrop/etc).
+// Falls back to direct download on platforms that don't support file sharing.
+async function shareBackup() {
+  const logs = getFilteredExportLogs();
+  if (logs.length === 0) { showToast('No entries to back up', 'error'); return; }
+
+  const payload = {
+    exported: new Date().toISOString(),
+    version: document.querySelector('meta[name="app-version"]')?.content || '?',
+    customExercises: state.customExercises || [],
+    customActivities: state.customActivities || [],
+    logs,
+  };
+  const json = JSON.stringify(payload, null, 2);
+  const filename = `workout-backup-${todayISO()}.json`;
+
+  // Web Share API with file — supported on iOS Safari 15+ and Android Chrome
+  if (navigator.canShare && navigator.canShare({ files: [] })) {
+    try {
+      const file = new File([json], filename, { type: 'application/json' });
+      await navigator.share({
+        title: 'Workout Tracker Backup',
+        text: `${logs.length} workout entries — ${todayISO()}`,
+        files: [file],
+      });
+      // navigator.share resolves when the user finishes (or dismisses)
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return; // user dismissed share sheet — fine
+      // Any other error: fall through to download
+    }
+  }
+
+  // Fallback: plain download + hint
+  triggerDownload(filename, json, 'application/json');
+  $('#shareBackupHint').style.display = 'block';
+  showToast('File downloaded — attach it to an email');
+}
+
 function exportJson() {
   const logs = getFilteredExportLogs();
   if (logs.length === 0) { showToast('No entries match these filters', 'error'); return; }
@@ -9827,6 +9868,7 @@ async function init() {
   });
   $('#exportCsvBtn').addEventListener('click', exportCsv);
   $('#exportJsonBtn').addEventListener('click', exportJson);
+  $('#shareBackupBtn').addEventListener('click', shareBackup);
 
   // Data — Import
   $('#importBtn').addEventListener('click', () => $('#importFile').click());
