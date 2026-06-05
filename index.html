@@ -5260,35 +5260,45 @@ function rtFmt(s) {
   return m > 0 ? `${m}:${sec}` : `0:${sec}`;
 }
 
-// Play a short beep using Web Audio API — works on iOS Safari where
-// navigator.vibrate() is not supported. freq in Hz, dur in ms.
-function rtBeep(freq = 880, dur = 180, vol = 0.4) {
+// Single shared AudioContext — created once on user tap so iOS allows it.
+// Reused for every beep throughout the timer lifetime.
+let _rtAudioCtx = null;
+function _rtGetCtx() {
+  if (!_rtAudioCtx || _rtAudioCtx.state === 'closed') {
+    _rtAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  // iOS suspends AudioContext when page goes to background — resume it.
+  if (_rtAudioCtx.state === 'suspended') _rtAudioCtx.resume();
+  return _rtAudioCtx;
+}
+
+// Play a tone using the shared AudioContext.
+function rtBeep(freq = 880, dur = 200, vol = 0.5) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx  = _rtGetCtx();
+    const now  = ctx.currentTime;
     const osc  = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.type = 'sine';
     osc.frequency.value = freq;
-    gain.gain.setValueAtTime(vol, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur / 1000);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + dur / 1000 + 0.05);
-    // Auto-close AudioContext after the sound ends to avoid resource leak
-    osc.onended = () => { try { ctx.close(); } catch (_) {} };
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur / 1000);
+    osc.start(now);
+    osc.stop(now + dur / 1000 + 0.05);
   } catch (_) {}
 }
 
 function rtAlert(atEnd = false) {
   if (atEnd) {
-    // Done: 3 beeps, escalating pitch + loud so it's clearly distinct from 10s
-    rtBeep(880, 250, 0.8);
+    // Done: 3 escalating beeps, clearly distinct from the 10s warning
+    rtBeep(880,  250, 0.8);
     setTimeout(() => rtBeep(1050, 250, 0.8), 320);
     setTimeout(() => rtBeep(1320, 450, 0.9), 640);
     try { navigator.vibrate && navigator.vibrate([200, 150, 200, 150, 400]); } catch (_) {}
   } else {
-    // 10 s warning: one lower beep
+    // 10 s warning: single lower beep
     rtBeep(660, 250, 0.4);
     try { navigator.vibrate && navigator.vibrate([150]); } catch (_) {}
   }
@@ -5297,7 +5307,10 @@ function rtAlert(atEnd = false) {
 function rtStart() {
   const secs = rtGetSeconds();
   if (!secs) return;
-  rtStop();                   // clear any running timer first
+  // Warm up AudioContext NOW inside the user-gesture handler so iOS
+  // grants audio permission. All later beeps will reuse this context.
+  try { _rtGetCtx(); } catch (_) {}
+  rtStop(false);              // clear any running timer, keep banner state clean
   rtRemaining = secs;
   const banner  = $('#restTimerBanner');
   const display = $('#restTimerCount');
