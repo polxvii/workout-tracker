@@ -240,46 +240,109 @@ body { padding-bottom: 80px; }
   touch-action: manipulation;
 }
 
-/* Chip-style multi-select replaces the old <select> dropdowns on every
-   filter row. Tap a chip to toggle it on/off; empty selection means
-   "no filter" (match all). Used on Log / History / Progress / Library. */
-.chip-multi {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 4px 0;
-  -webkit-tap-highlight-color: transparent;
+/* Compact multi-select dropdown — a button that shows the current
+   selection summary; tapping it pops up a checkbox list. Replaces the
+   earlier always-visible chip row (took too much vertical space). */
+.multi-select {
+  position: relative;
+  display: inline-block;
+  margin: 4px 6px 4px 0;
+  vertical-align: top;
 }
-.chip-multi .chip {
-  padding: 6px 12px;
-  border-radius: 14px;
+.ms-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--surface-2);
-  color: var(--text-dim);
-  font-size: 12px;
-  font-weight: 500;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
-  font-family: inherit;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
   touch-action: manipulation;
+  transition: border-color 0.12s;
 }
-.chip-multi .chip.active {
-  background: var(--primary);
-  color: white;
-  border-color: var(--primary);
-}
-.chip-multi .chip:active {
-  transform: scale(0.97);
-}
-.chip-multi-label {
-  font-size: 11px;
+.ms-trigger:active { transform: scale(0.98); }
+.ms-trigger:hover,
+.multi-select.open .ms-trigger { border-color: var(--primary); }
+.ms-label {
   font-weight: 600;
-  color: var(--text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin: 8px 0 2px;
+  color: var(--text-dim);
+  font-size: 12px;
 }
+.ms-summary {
+  font-weight: 500;
+  color: var(--text);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ms-summary.is-default { color: var(--text-faint); font-style: italic; }
+.ms-caret {
+  color: var(--text-faint);
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+.multi-select.open .ms-caret { transform: rotate(180deg); }
+.ms-popup {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  min-width: 180px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+  z-index: 100;
+  padding: 4px;
+}
+.multi-select.open .ms-popup { display: block; }
+.ms-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  touch-action: manipulation;
+  user-select: none;
+}
+.ms-option:hover { background: var(--surface-2); }
+.ms-option input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  margin: 0;
+  flex-shrink: 0;
+}
+.ms-clear {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.ms-clear:hover { color: var(--danger); }
+.ms-clear:disabled { color: var(--text-faint); cursor: default; }
 .tab.active {
   color: var(--primary);
   border-bottom-color: var(--primary);
@@ -1113,9 +1176,7 @@ select {
 
       <div class="form-group" id="exerciseFilterSection">
         <label>Filter exercises</label>
-        <div class="chip-multi-label">Body part</div>
         <div id="filterBodyPart"></div>
-        <div class="chip-multi-label">Type</div>
         <div id="filterType"></div>
         <input type="search" id="searchExercise" class="search-input" placeholder="Search by name…" style="margin-top:10px;">
       </div>
@@ -1179,9 +1240,7 @@ select {
       </div>
 
       <label>Filter by</label>
-      <div class="chip-multi-label">Body part</div>
       <div id="historyBodyPart"></div>
-      <div class="chip-multi-label">Type</div>
       <div id="historyType"></div>
     </div>
 
@@ -1201,9 +1260,7 @@ select {
 
       <div class="filter-card-body" id="progressFilterBody">
         <label>Filter by</label>
-        <div class="chip-multi-label">Body part</div>
         <div id="progressBodyPart"></div>
-        <div class="chip-multi-label">Type</div>
         <div id="progressType"></div>
 
         <div class="form-group">
@@ -1492,9 +1549,7 @@ select {
     <div class="card">
       <div class="card-title">Exercise library (<span id="libTotalCount">0</span> exercises)</div>
 
-      <div class="chip-multi-label">Body part</div>
       <div id="libBodyPart"></div>
-      <div class="chip-multi-label">Type</div>
       <div id="libType"></div>
       <input type="search" id="libSearch" class="search-input" style="margin-top:10px;" placeholder="Search by name…">
 
@@ -4971,37 +5026,120 @@ function isSetPR(log, setIdx) {
 }
 
 // ============================================================
-// MULTI-SELECT CHIPS
+// MULTI-SELECT DROPDOWN
 // ============================================================
-// Each filter container (was a <select>) now becomes a horizontal row
-// of toggle-able chips. Multiple chips can be active at once. Empty
-// selection means "no filter" — match everything.
+// Each filter container (was a <select>, briefly a chip row in v1.08 part 5)
+// is now a dropdown trigger button + popup with checkboxes. Tapping the
+// trigger opens the popup, tapping a checkbox toggles a value, multiple
+// can be selected at once. Empty selection = "no filter" (match anything).
 //
-// renderChipMulti(containerId, options, onChange):
-//   options is an array of strings (label === value).
-//   onChange fires every time the user toggles a chip.
-function renderChipMulti(containerId, options, onChange) {
+// Function name kept as renderChipMulti / getChipMultiSelected so all the
+// existing callsites still work unchanged.
+//
+// renderChipMulti(containerId, label, options, onChange, opts):
+//   label    — short text shown on the trigger ("Body part", "Type", …)
+//   options  — array of strings (label === value)
+//   onChange — fires every time the user toggles a checkbox
+//   opts.defaultSelectAll — if true, every checkbox is checked at startup
+//     (used on History + Progress where the user-mental-model is "show
+//     everything by default, narrow down by unchecking"). Filter logic
+//     still treats an all-checked set the same as an empty set, so it's
+//     a pure UI nudge — no behavioural difference until the user
+//     unchecks something.
+function renderChipMulti(containerId, label, options, onChange, opts) {
   const container = $(containerId);
   if (!container) return;
-  container.className = 'chip-multi';
-  container.innerHTML = options.map(o =>
-    `<button type="button" class="chip" data-value="${escapeHtml(o)}">${escapeHtml(o)}</button>`
-  ).join('');
-  container.querySelectorAll('.chip').forEach(c => {
-    c.addEventListener('click', () => {
-      c.classList.toggle('active');
-      if (onChange) onChange();
+  const selectAllDefault = !!(opts && opts.defaultSelectAll);
+  container.className = 'multi-select';
+  container.innerHTML = `
+    <button class="ms-trigger" type="button">
+      <span class="ms-label">${escapeHtml(label)}</span>
+      <span class="ms-summary is-default">All</span>
+      <span class="ms-caret">▾</span>
+    </button>
+    <div class="ms-popup">
+      ${options.map(o => `
+        <label class="ms-option">
+          <input type="checkbox" value="${escapeHtml(o)}"${selectAllDefault ? ' checked' : ''}>
+          <span>${escapeHtml(o)}</span>
+        </label>`).join('')}
+      <button type="button" class="ms-clear"${selectAllDefault ? '' : ' disabled'}>Clear selection</button>
+    </div>`;
+
+  const trigger = container.querySelector('.ms-trigger');
+  const summary = container.querySelector('.ms-summary');
+  const clearBtn = container.querySelector('.ms-clear');
+  const totalOptions = options.length;
+
+  function updateSummary() {
+    const checks = [...container.querySelectorAll('input[type="checkbox"]:checked')];
+    const vals = checks.map(c => c.value);
+    // "All" surfaces in two cases: nothing selected OR everything selected.
+    // Both are semantically "match anything" — the filter logic treats
+    // size===0 as no filter and an all-checked set matches every value
+    // by has() anyway.
+    if (vals.length === 0 || vals.length === totalOptions) {
+      summary.textContent = 'All';
+      summary.classList.add('is-default');
+      clearBtn.disabled = vals.length === 0;
+    } else if (vals.length <= 2) {
+      summary.textContent = vals.join(', ');
+      summary.classList.remove('is-default');
+      clearBtn.disabled = false;
+    } else {
+      summary.textContent = vals.length + ' selected';
+      summary.classList.remove('is-default');
+      clearBtn.disabled = false;
+    }
+    if (onChange) onChange();
+  }
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // Close any other open dropdown first so only one popup is visible
+    document.querySelectorAll('.multi-select.open').forEach(el => {
+      if (el !== container) el.classList.remove('open');
     });
+    container.classList.toggle('open');
+  });
+
+  // Stop clicks INSIDE the popup from bubbling up to the document
+  // close-on-outside handler.
+  container.querySelector('.ms-popup').addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+
+  container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', updateSummary);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    container.querySelectorAll('input[type="checkbox"]').forEach(c => { c.checked = false; });
+    updateSummary();
   });
 }
 
-// Read the Set of currently-selected chip values from a chip-multi
-// container. Returns an empty Set if no chips are active OR the
-// container doesn't exist.
+// Wire the global outside-click + Esc handlers exactly once.
+if (!window._msGlobalWired) {
+  window._msGlobalWired = true;
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.multi-select.open').forEach(el => el.classList.remove('open'));
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.multi-select.open').forEach(el => el.classList.remove('open'));
+    }
+  });
+}
+
+// Read the Set of currently-selected values from a multi-select.
+// Empty Set = no filter (match all).
 function getChipMultiSelected(containerId) {
   const container = $(containerId);
   if (!container) return new Set();
-  return new Set([...container.querySelectorAll('.chip.active')].map(c => c.dataset.value));
+  return new Set(
+    [...container.querySelectorAll('input[type="checkbox"]:checked')].map(c => c.value)
+  );
 }
 
 // Shared filter helper: "do these chips allow `value`?". An empty
@@ -5018,28 +5156,34 @@ const EQUIPMENT_TYPES = ['Bar', 'Dumbbell', 'Cable', 'Machine', 'Smith', 'Body W
 // DROPDOWN POPULATION
 // ============================================================
 function populateBodyPartSelects() {
-  // The 4 body-part filter containers are now chip-multi groups, not
-  // <select>s. Wire each one's onChange to the page's main re-render.
-  // populateProgressExercises is paired with progressBodyPart because
-  // changing body part also resets the per-exercise dropdown list.
+  // The 4 body-part filter containers are now multi-select dropdowns.
+  // Wire each one's onChange to the page's main re-render.
+  // History + Progress default to all-checked because the mental model
+  // for "look at my data" is "show everything, let me narrow down". Log
+  // + Library default to nothing-selected because picking an exercise
+  // there is forward-looking ("I'm about to filter to one body part").
+  const LABEL = 'Body part';
+  const all = { defaultSelectAll: true };
   const pairs = [
-    ['#filterBodyPart',   () => { renderExerciseGrid(); }],
-    ['#historyBodyPart',  () => { renderHistory(); }],
-    ['#libBodyPart',      () => { renderLibrary(); }],
-    ['#progressBodyPart', () => { populateProgressExercises(); updateProgressFilterSummary(); renderProgress(); }],
+    ['#filterBodyPart',   () => { renderExerciseGrid(); }, null],
+    ['#historyBodyPart',  () => { renderHistory(); }, all],
+    ['#libBodyPart',      () => { renderLibrary(); }, null],
+    ['#progressBodyPart', () => { populateProgressExercises(); updateProgressFilterSummary(); renderProgress(); }, all],
   ];
-  pairs.forEach(([sel, onChange]) => renderChipMulti(sel, BODY_PARTS, onChange));
+  pairs.forEach(([sel, onChange, opts]) => renderChipMulti(sel, LABEL, BODY_PARTS, onChange, opts));
 }
 
 function populateTypeSelects() {
   // Each Type filter mirrors EQUIPMENT_TYPES — defined once, used four times.
+  const LABEL = 'Type';
+  const all = { defaultSelectAll: true };
   const pairs = [
-    ['#filterType',   () => { renderExerciseGrid(); }],
-    ['#historyType',  () => { renderHistory(); }],
-    ['#libType',      () => { renderLibrary(); }],
-    ['#progressType', () => { populateProgressExercises(); updateProgressFilterSummary(); renderProgress(); }],
+    ['#filterType',   () => { renderExerciseGrid(); }, null],
+    ['#historyType',  () => { renderHistory(); }, all],
+    ['#libType',      () => { renderLibrary(); }, null],
+    ['#progressType', () => { populateProgressExercises(); updateProgressFilterSummary(); renderProgress(); }, all],
   ];
-  pairs.forEach(([sel, onChange]) => renderChipMulti(sel, EQUIPMENT_TYPES, onChange));
+  pairs.forEach(([sel, onChange, opts]) => renderChipMulti(sel, LABEL, EQUIPMENT_TYPES, onChange, opts));
 }
 
 // FIX: progress dropdown now shows ALL exercises filtered by body part + type
@@ -5605,6 +5749,11 @@ function toggleFilterCard(cardId) {
 function updateProgressFilterSummary() {
   const bpSet = getChipMultiSelected('#progressBodyPart');
   const tpSet = getChipMultiSelected('#progressType');
+  // Treat "all selected" the same as "nothing selected" — both mean no
+  // narrowing. With defaultSelectAll the bpSet starts full of 7 items;
+  // joining them all into the summary is ugly and overflows the line.
+  const bpAll = bpSet.size === 0 || bpSet.size === BODY_PARTS.length;
+  const tpAll = tpSet.size === 0 || tpSet.size === EQUIPMENT_TYPES.length;
   const exId = $('#progressExercise').value;
   const ex = exId ? exerciseById(exId) : null;
   const from = $('#progressFrom').value, to = $('#progressTo').value;
@@ -5616,10 +5765,23 @@ function updateProgressFilterSummary() {
   else if (from && to) periodLabel = formatDate(from) + ' → ' + formatDate(to);
   else periodLabel = (from ? 'from ' + formatDate(from) : 'up to ' + formatDate(to));
 
+  // Compact summary of a partial selection: list 1-2 items inline, else
+  // "N body parts" / "N types". Avoids the collapsed-bar summary from
+  // ever overflowing horizontally on a phone screen.
+  function compress(set, label) {
+    const arr = [...set];
+    if (arr.length <= 2) return arr.join(', ');
+    return arr.length + ' ' + label;
+  }
   let what;
   if (ex) what = ex.name;
-  else if (bpSet.size + tpSet.size === 0) what = 'All exercises';
-  else what = [...bpSet, ...tpSet].join(' · ');
+  else if (bpAll && tpAll) what = 'All exercises';
+  else {
+    const parts = [];
+    if (!bpAll) parts.push(compress(bpSet, 'body parts'));
+    if (!tpAll) parts.push(compress(tpSet, 'types'));
+    what = parts.join(' · ');
+  }
   $('#progressFilterSummary').textContent = what + ' · ' + periodLabel;
 }
 
@@ -5912,11 +6074,15 @@ function renderProgressAll() {
   else periodLabel = `Up to ${formatDate(to)}`;
 
   if (logs.length === 0) {
+    // Build a short "current filter" suffix when the user has narrowed
+    // down. Treats an all-selected set the same as empty (no filter).
+    const bpHint = (bpSet.size > 0 && bpSet.size < BODY_PARTS.length) ? ' · ' + [...bpSet].join(', ') : '';
+    const tpHint = (tpSet.size > 0 && tpSet.size < EQUIPMENT_TYPES.length) ? ' · ' + [...tpSet].join(', ') : '';
     content.innerHTML = `
       <div class="empty">
         <div class="empty-icon">📈</div>
         <div class="empty-title">No workouts found</div>
-        <div>Period: ${escapeHtml(periodLabel)}${bp ? ' · ' + escapeHtml(bp) : ''}${tp ? ' · ' + escapeHtml(tp) : ''}</div>
+        <div>Period: ${escapeHtml(periodLabel)}${escapeHtml(bpHint)}${escapeHtml(tpHint)}</div>
         <div style="margin-top:8px;">Try expanding the date range or clearing filters</div>
       </div>`;
     return;
