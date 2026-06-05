@@ -5849,10 +5849,10 @@ function deleteCustomExercise(id) {
   const ex = state.customExercises.find(e => e.id === id);
   if (!ex) return;
   const linkedLogs = state.logs.filter(l => l.exerciseId === id);
-  const tail = linkedLogs.length
-    ? ` and its ${linkedLogs.length} log${linkedLogs.length === 1 ? '' : 's'} (history + progress entries will disappear)`
-    : '';
-  if (!confirm(`Delete "${ex.name}"${tail}? This can't be undone.`)) return;
+  const msg = linkedLogs.length
+    ? `ลบ "${ex.name}" ?\n\nHistory และ Progress ทั้งหมดของท่านี้จะหายไปด้วย (${linkedLogs.length} session${linkedLogs.length === 1 ? '' : 's'})\n\nไม่สามารถย้อนคืนได้`
+    : `ลบ "${ex.name}" ?\n\nไม่สามารถย้อนคืนได้`;
+  if (!confirm(msg)) return;
   state.customExercises = state.customExercises.filter(e => e.id !== id);
   state.logs = state.logs.filter(l => l.exerciseId !== id);
   if (state.selectedExercise === id) state.selectedExercise = null;
@@ -5869,10 +5869,10 @@ function deleteCustomActivity(id) {
   const a = state.customActivities.find(x => x.id === id);
   if (!a) return;
   const linkedLogs = state.logs.filter(l => l.activity === id);
-  const tail = linkedLogs.length
-    ? ` and its ${linkedLogs.length} log${linkedLogs.length === 1 ? '' : 's'} (history + progress entries will disappear)`
-    : '';
-  if (!confirm(`Delete "${a.name}"${tail}? This can't be undone.`)) return;
+  const msg = linkedLogs.length
+    ? `ลบ "${a.name}" ?\n\nHistory และ Progress ทั้งหมดของกิจกรรมนี้จะหายไปด้วย (${linkedLogs.length} session${linkedLogs.length === 1 ? '' : 's'})\n\nไม่สามารถย้อนคืนได้`
+    : `ลบ "${a.name}" ?\n\nไม่สามารถย้อนคืนได้`;
+  if (!confirm(msg)) return;
   state.customActivities = state.customActivities.filter(x => x.id !== id);
   state.logs = state.logs.filter(l => l.activity !== id);
   if (selectedCardioActivity === id) selectedCardioActivity = null;
