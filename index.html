@@ -900,6 +900,13 @@ select {
   margin-bottom: 12px;
 }
 .search-input { margin-bottom: 12px; }
+/* Show the native ✕ clear button on all browsers that support type=search */
+.search-input::-webkit-search-cancel-button {
+  -webkit-appearance: searchfield-cancel-button;
+  appearance: auto;
+  cursor: pointer;
+}
+.search-input::-webkit-search-results-button { display: none; }
 
 /* Toast */
 .toast {
@@ -2925,6 +2932,26 @@ const EXERCISES = [
     secondaryMuscles: [],
     slug: 'delts/cable-front-raise',
     desc: 'Low pulley front raise keeps tension throughout the full range of motion.',
+  },
+  {
+    id: 'cb-one-arm-lateral-raise',
+    name: 'Single Cable Lateral Raise',
+    bodyPart: 'Shoulders',
+    type: 'Cable',
+    primaryMuscle: 'Shoulders (side)',
+    secondaryMuscles: ['Shoulders (front)'],
+    slug: 'delts/cable-one-arm-lateral-raise',
+    desc: 'Single-arm cable lateral raise — eliminates momentum and lets each side work independently.',
+  },
+  {
+    id: 'cb-one-arm-front-raise',
+    name: 'Single Cable Front Raise',
+    bodyPart: 'Shoulders',
+    type: 'Cable',
+    primaryMuscle: 'Shoulders (front)',
+    secondaryMuscles: [],
+    slug: 'delts/cable-front-shoulder-raise',
+    desc: 'Single-arm cable front raise — constant tension from the low pulley throughout the ROM.',
   },
   {
     id: 'cb-upright-row',
@@ -5243,10 +5270,11 @@ function escapeHtml(s) {
 // REST TIMER
 // ============================================================
 // Preference: 0 = off, 60/90/120 = fixed seconds, 'manual' = use rtManualSecs
-let rtSetting   = 60;      // active chip value (0 | 60 | 90 | 120 | 'manual')
+let rtSetting    = 60;     // active chip value (0 | 60 | 90 | 120 | 'manual')
 let rtManualSecs = 90;     // value for the manual input
-let rtInterval  = null;    // setInterval handle
-let rtRemaining = 0;
+let rtInterval   = null;   // setInterval handle
+let rtRemaining  = 0;
+let rtEndTime    = 0;      // epoch ms when timer should reach 0 (used to recover after background)
 
 function rtGetSeconds() {
   if (rtSetting === 0 || rtSetting === '0') return 0;
@@ -5304,34 +5332,48 @@ function rtAlert(atEnd = false) {
   }
 }
 
+function rtTick() {
+  // Recalculate from wall-clock so background throttling doesn't drift
+  const secsLeft = Math.max(0, Math.round((rtEndTime - Date.now()) / 1000));
+  const display = $('#restTimerCount');
+  if (!display) return;
+
+  // Detect passing through 10 s threshold
+  if (rtRemaining > 10 && secsLeft <= 10 && secsLeft > 0) {
+    display.classList.add('warning');
+    rtAlert(false);
+  }
+  rtRemaining = secsLeft;
+  display.textContent = rtFmt(rtRemaining);
+
+  if (rtRemaining <= 0) {
+    rtAlert(true);
+    rtStop(false);
+    const lbl = document.querySelector('#restTimerBanner .rt-label');
+    if (lbl) lbl.textContent = '✓ Rest done';
+  }
+}
+
 function rtStart() {
   const secs = rtGetSeconds();
   if (!secs) return;
   // Warm up AudioContext NOW inside the user-gesture handler so iOS
   // grants audio permission. All later beeps will reuse this context.
   try { _rtGetCtx(); } catch (_) {}
-  rtStop(false);              // clear any running timer, keep banner state clean
+  rtStop(false);
+  rtEndTime   = Date.now() + secs * 1000;
   rtRemaining = secs;
+
   const banner  = $('#restTimerBanner');
   const display = $('#restTimerCount');
   display.textContent = rtFmt(rtRemaining);
   display.classList.remove('warning');
+  const lbl = banner.querySelector('.rt-label');
+  if (lbl) lbl.textContent = '⏱ Rest';
   banner.style.display = 'flex';
 
-  rtInterval = setInterval(() => {
-    rtRemaining--;
-    display.textContent = rtFmt(rtRemaining);
-    if (rtRemaining === 10) {
-      display.classList.add('warning');
-      rtAlert(false);   // warning beep at 10 s
-    }
-    if (rtRemaining <= 0) {
-      rtAlert(true);    // beep FIRST before anything else
-      rtStop(false);    // then stop counting, keep banner at 0:00
-      const lbl = document.querySelector('#restTimerBanner .rt-label');
-      if (lbl) lbl.textContent = '✓ Rest done';
-    }
-  }, 1000);
+  // Use 500 ms interval so we recover quickly after coming back from background
+  rtInterval = setInterval(rtTick, 500);
 }
 
 // rtStop(hide) — stop the countdown interval.
@@ -5754,10 +5796,28 @@ function renderExerciseGrid() {
 
   grid.querySelectorAll('.exercise-card').forEach(card => {
     card.addEventListener('click', () => {
-      state.selectedExercise = card.dataset.id;
+      const id = card.dataset.id;
+      state.selectedExercise = id;
+
+      // Check if this exercise was already logged today — offer to continue
+      const today = $('#logDate').value || todayISO();
+      const todayLogs = state.logs.filter(l => l.exerciseId === id && l.date === today);
+      if (todayLogs.length > 0) {
+        const lastLog = todayLogs[todayLogs.length - 1];
+        // Load last session's sets as a starting point
+        currentSets = lastLog.sets.map(s => ({
+          reps:   String(s.reps   || ''),
+          weight: String(s.weight ?? ''),
+          note:   s.note || '',
+        }));
+        // Add an empty row ready for the next set
+        currentSets.push({ reps: '', weight: '', note: '' });
+      } else {
+        currentSets = [{ reps: '', weight: '', note: '' }];
+      }
+
       renderExerciseGrid();
       renderSetsCard();
-      // Scroll to the sets card so the input fields are visible
       setTimeout(() => {
         const setsCard = $('#setsCard');
         if (setsCard) setsCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -5781,7 +5841,24 @@ function renderSetsCard() {
   const prBadge = pr
     ? ` <span style="font-size:12px; font-weight:500; color:var(--text-dim); margin-left:6px;">· PR ${pr.weight}</span>`
     : '';
-  $('#setsCardTitle').innerHTML = escapeHtml(ex.name) + ' — sets' + prBadge;
+  // Check if we're continuing from an existing log today
+  const today2 = $('#logDate').value || todayISO();
+  const todayLogCount = state.logs.filter(l => l.exerciseId === ex.id && l.date === today2).length;
+  const continueBadge = todayLogCount > 0
+    ? ` <span style="font-size:11px; color:var(--primary); margin-left:6px;">↩ continuing</span>`
+    : '';
+  const newSessionBtn = todayLogCount > 0
+    ? ` <button type="button" id="newSessionBtn" style="font-size:11px; background:none; border:none; color:var(--text-faint); cursor:pointer; font-family:inherit; margin-left:8px; text-decoration:underline;">New session</button>`
+    : '';
+  $('#setsCardTitle').innerHTML = escapeHtml(ex.name) + ' — sets' + prBadge + continueBadge + newSessionBtn;
+  const nsBtn = $('#newSessionBtn');
+  if (nsBtn) {
+    nsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentSets = [{ reps: '', weight: '', note: '' }];
+      renderSetsCard();
+    });
+  }
 
   const container = $('#setsContainer');
   container.innerHTML = currentSets.map((s, i) => `
@@ -9990,6 +10067,11 @@ async function init() {
   // Rest timer: load saved preference and wire UI
   rtLoadPref();
   rtWireChips();
+  // When user returns from background, run a tick immediately so the
+  // display and alerts fire without waiting for the next 500ms interval.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && rtInterval) rtTick();
+  });
   $('#restTimerSkipBtn').addEventListener('click', () => {
     rtStop(true);
     const lbl = document.querySelector('#restTimerBanner .rt-label');
