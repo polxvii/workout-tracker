@@ -239,6 +239,47 @@ body { padding-bottom: 80px; }
      disables the zoom gesture but keeps single-tap responsive. */
   touch-action: manipulation;
 }
+
+/* Chip-style multi-select replaces the old <select> dropdowns on every
+   filter row. Tap a chip to toggle it on/off; empty selection means
+   "no filter" (match all). Used on Log / History / Progress / Library. */
+.chip-multi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.chip-multi .chip {
+  padding: 6px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  touch-action: manipulation;
+}
+.chip-multi .chip.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+.chip-multi .chip:active {
+  transform: scale(0.97);
+}
+.chip-multi-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 8px 0 2px;
+}
 .tab.active {
   color: var(--primary);
   border-bottom-color: var(--primary);
@@ -1072,21 +1113,11 @@ select {
 
       <div class="form-group" id="exerciseFilterSection">
         <label>Filter exercises</label>
-        <div class="filter-row">
-          <select id="filterBodyPart">
-            <option value="">All body parts</option>
-          </select>
-          <select id="filterType">
-            <option value="">All types</option>
-            <option value="Bar">Bar</option>
-            <option value="Dumbbell">Dumbbell</option>
-            <option value="Cable">Cable</option>
-            <option value="Body Weight">Body Weight</option>
-            <option value="Machine">Machine</option>
-            <option value="Smith">Smith</option>
-          </select>
-        </div>
-        <input type="search" id="searchExercise" class="search-input" placeholder="Search by name…">
+        <div class="chip-multi-label">Body part</div>
+        <div id="filterBodyPart"></div>
+        <div class="chip-multi-label">Type</div>
+        <div id="filterType"></div>
+        <input type="search" id="searchExercise" class="search-input" placeholder="Search by name…" style="margin-top:10px;">
       </div>
 
       <div class="form-group">
@@ -1148,20 +1179,10 @@ select {
       </div>
 
       <label>Filter by</label>
-      <div class="filter-row">
-        <select id="historyBodyPart">
-          <option value="">All body parts</option>
-        </select>
-        <select id="historyType">
-          <option value="">All types</option>
-          <option value="Bar">Bar</option>
-          <option value="Dumbbell">Dumbbell</option>
-          <option value="Cable">Cable</option>
-          <option value="Body Weight">Body Weight</option>
-            <option value="Machine">Machine</option>
-            <option value="Smith">Smith</option>
-        </select>
-      </div>
+      <div class="chip-multi-label">Body part</div>
+      <div id="historyBodyPart"></div>
+      <div class="chip-multi-label">Type</div>
+      <div id="historyType"></div>
     </div>
 
     <div id="summaryContainer"></div>
@@ -1180,20 +1201,10 @@ select {
 
       <div class="filter-card-body" id="progressFilterBody">
         <label>Filter by</label>
-        <div class="filter-row">
-          <select id="progressBodyPart">
-            <option value="">All body parts</option>
-          </select>
-          <select id="progressType">
-            <option value="">All types</option>
-            <option value="Bar">Bar</option>
-            <option value="Dumbbell">Dumbbell</option>
-            <option value="Cable">Cable</option>
-            <option value="Body Weight">Body Weight</option>
-            <option value="Machine">Machine</option>
-            <option value="Smith">Smith</option>
-          </select>
-        </div>
+        <div class="chip-multi-label">Body part</div>
+        <div id="progressBodyPart"></div>
+        <div class="chip-multi-label">Type</div>
+        <div id="progressType"></div>
 
         <div class="form-group">
           <label for="progressExercise">Exercise — optional (<span id="progressExerciseCount">0</span> available)</label>
@@ -1481,20 +1492,10 @@ select {
     <div class="card">
       <div class="card-title">Exercise library (<span id="libTotalCount">0</span> exercises)</div>
 
-      <div class="filter-row">
-        <select id="libBodyPart">
-          <option value="">All body parts</option>
-        </select>
-        <select id="libType">
-          <option value="">All types</option>
-          <option value="Bar">Bar</option>
-          <option value="Dumbbell">Dumbbell</option>
-          <option value="Cable">Cable</option>
-          <option value="Body Weight">Body Weight</option>
-            <option value="Machine">Machine</option>
-            <option value="Smith">Smith</option>
-        </select>
-      </div>
+      <div class="chip-multi-label">Body part</div>
+      <div id="libBodyPart"></div>
+      <div class="chip-multi-label">Type</div>
+      <div id="libType"></div>
       <input type="search" id="libSearch" class="search-input" style="margin-top:10px;" placeholder="Search by name…">
 
       <div class="exercise-grid" id="libGrid" style="margin-top: 12px;"></div>
@@ -4970,24 +4971,85 @@ function isSetPR(log, setIdx) {
 }
 
 // ============================================================
+// MULTI-SELECT CHIPS
+// ============================================================
+// Each filter container (was a <select>) now becomes a horizontal row
+// of toggle-able chips. Multiple chips can be active at once. Empty
+// selection means "no filter" — match everything.
+//
+// renderChipMulti(containerId, options, onChange):
+//   options is an array of strings (label === value).
+//   onChange fires every time the user toggles a chip.
+function renderChipMulti(containerId, options, onChange) {
+  const container = $(containerId);
+  if (!container) return;
+  container.className = 'chip-multi';
+  container.innerHTML = options.map(o =>
+    `<button type="button" class="chip" data-value="${escapeHtml(o)}">${escapeHtml(o)}</button>`
+  ).join('');
+  container.querySelectorAll('.chip').forEach(c => {
+    c.addEventListener('click', () => {
+      c.classList.toggle('active');
+      if (onChange) onChange();
+    });
+  });
+}
+
+// Read the Set of currently-selected chip values from a chip-multi
+// container. Returns an empty Set if no chips are active OR the
+// container doesn't exist.
+function getChipMultiSelected(containerId) {
+  const container = $(containerId);
+  if (!container) return new Set();
+  return new Set([...container.querySelectorAll('.chip.active')].map(c => c.dataset.value));
+}
+
+// Shared filter helper: "do these chips allow `value`?". An empty
+// Set (no chips selected) means "no filter, allow anything".
+function chipAllowsValue(containerId, value) {
+  const s = getChipMultiSelected(containerId);
+  return s.size === 0 || s.has(value);
+}
+
+// Centralised list of equipment types used by every Type filter.
+const EQUIPMENT_TYPES = ['Bar', 'Dumbbell', 'Cable', 'Machine', 'Smith', 'Body Weight'];
+
+// ============================================================
 // DROPDOWN POPULATION
 // ============================================================
 function populateBodyPartSelects() {
-  const opts = BODY_PARTS.map(bp => `<option value="${bp}">${bp}</option>`).join('');
-  ['#filterBodyPart', '#historyBodyPart', '#libBodyPart', '#progressBodyPart'].forEach(sel => {
-    const el = $(sel);
-    if (el) el.innerHTML = '<option value="">All body parts</option>' + opts;
-  });
+  // The 4 body-part filter containers are now chip-multi groups, not
+  // <select>s. Wire each one's onChange to the page's main re-render.
+  // populateProgressExercises is paired with progressBodyPart because
+  // changing body part also resets the per-exercise dropdown list.
+  const pairs = [
+    ['#filterBodyPart',   () => { renderExerciseGrid(); }],
+    ['#historyBodyPart',  () => { renderHistory(); }],
+    ['#libBodyPart',      () => { renderLibrary(); }],
+    ['#progressBodyPart', () => { populateProgressExercises(); updateProgressFilterSummary(); renderProgress(); }],
+  ];
+  pairs.forEach(([sel, onChange]) => renderChipMulti(sel, BODY_PARTS, onChange));
+}
+
+function populateTypeSelects() {
+  // Each Type filter mirrors EQUIPMENT_TYPES — defined once, used four times.
+  const pairs = [
+    ['#filterType',   () => { renderExerciseGrid(); }],
+    ['#historyType',  () => { renderHistory(); }],
+    ['#libType',      () => { renderLibrary(); }],
+    ['#progressType', () => { populateProgressExercises(); updateProgressFilterSummary(); renderProgress(); }],
+  ];
+  pairs.forEach(([sel, onChange]) => renderChipMulti(sel, EQUIPMENT_TYPES, onChange));
 }
 
 // FIX: progress dropdown now shows ALL exercises filtered by body part + type
 function populateProgressExercises() {
-  const bp = $('#progressBodyPart').value;
-  const tp = $('#progressType').value;
+  const bpSet = getChipMultiSelected('#progressBodyPart');
+  const tpSet = getChipMultiSelected('#progressType');
 
   const filtered = EXERCISES.filter(e =>
-    (!bp || e.bodyPart === bp) &&
-    (!tp || e.type === tp)
+    (bpSet.size === 0 || bpSet.has(e.bodyPart)) &&
+    (tpSet.size === 0 || tpSet.has(e.type))
   ).sort((a, b) => a.name.localeCompare(b.name));
 
   const loggedIds = new Set(state.logs.map(l => l.exerciseId));
@@ -5058,13 +5120,13 @@ function renderExerciseGrid() {
   $('#changeExerciseBtn').style.display = 'none';
   $('#exerciseLabelText').textContent = 'Choose exercise ';
 
-  const bp = $('#filterBodyPart').value;
-  const tp = $('#filterType').value;
+  const bpSet = getChipMultiSelected('#filterBodyPart');
+  const tpSet = getChipMultiSelected('#filterType');
   const q = $('#searchExercise').value.trim().toLowerCase();
 
   const filtered = EXERCISES.filter(e =>
-    (!bp || e.bodyPart === bp) &&
-    (!tp || e.type === tp) &&
+    (bpSet.size === 0 || bpSet.has(e.bodyPart)) &&
+    (tpSet.size === 0 || tpSet.has(e.type)) &&
     (!q || e.name.toLowerCase().includes(q))
   );
 
@@ -5238,16 +5300,16 @@ function setHistoryRange(days) {
 
 function getFilteredLogs() {
   const { from, to } = getHistoryDateRange();
-  const bp = $('#historyBodyPart').value;
-  const tp = $('#historyType').value;
+  const bpSet = getChipMultiSelected('#historyBodyPart');
+  const tpSet = getChipMultiSelected('#historyType');
 
   return state.logs.filter(l => {
     if (from && l.date < from) return false;
     if (to && l.date > to) return false;
     const ex = exerciseById(l.exerciseId);
     if (!ex) return false;
-    if (bp && ex.bodyPart !== bp) return false;
-    if (tp && ex.type !== tp) return false;
+    if (bpSet.size > 0 && !bpSet.has(ex.bodyPart)) return false;
+    if (tpSet.size > 0 && !tpSet.has(ex.type))     return false;
     return true;
   }).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
 }
@@ -5541,8 +5603,8 @@ function toggleFilterCard(cardId) {
 
 // Build a compact summary line shown when the card is collapsed
 function updateProgressFilterSummary() {
-  const bp = $('#progressBodyPart').value;
-  const tp = $('#progressType').value;
+  const bpSet = getChipMultiSelected('#progressBodyPart');
+  const tpSet = getChipMultiSelected('#progressType');
   const exId = $('#progressExercise').value;
   const ex = exId ? exerciseById(exId) : null;
   const from = $('#progressFrom').value, to = $('#progressTo').value;
@@ -5554,7 +5616,10 @@ function updateProgressFilterSummary() {
   else if (from && to) periodLabel = formatDate(from) + ' → ' + formatDate(to);
   else periodLabel = (from ? 'from ' + formatDate(from) : 'up to ' + formatDate(to));
 
-  const what = ex ? ex.name : (bp || tp ? [bp, tp].filter(Boolean).join(' · ') : 'All exercises');
+  let what;
+  if (ex) what = ex.name;
+  else if (bpSet.size + tpSet.size === 0) what = 'All exercises';
+  else what = [...bpSet, ...tpSet].join(' · ');
   $('#progressFilterSummary').textContent = what + ' · ' + periodLabel;
 }
 
@@ -5825,8 +5890,8 @@ function wireProgressBackBtn() {
 function renderProgressAll() {
   const content = $('#progressContent');
   const { from, to } = getProgressDateRange();
-  const bp = $('#progressBodyPart').value;
-  const tp = $('#progressType').value;
+  const bpSet = getChipMultiSelected('#progressBodyPart');
+  const tpSet = getChipMultiSelected('#progressType');
 
   // Find all logs in period, filtered by body part/type
   const logs = state.logs.filter(l => {
@@ -5834,8 +5899,8 @@ function renderProgressAll() {
     if (to && l.date > to) return false;
     const ex = exerciseById(l.exerciseId);
     if (!ex) return false;
-    if (bp && ex.bodyPart !== bp) return false;
-    if (tp && ex.type !== tp) return false;
+    if (bpSet.size > 0 && !bpSet.has(ex.bodyPart)) return false;
+    if (tpSet.size > 0 && !tpSet.has(ex.type))     return false;
     return true;
   });
 
@@ -6005,13 +6070,13 @@ function renderProgressAll() {
 // LIBRARY VIEW
 // ============================================================
 function renderLibrary() {
-  const bp = $('#libBodyPart').value;
-  const tp = $('#libType').value;
+  const bpSet = getChipMultiSelected('#libBodyPart');
+  const tpSet = getChipMultiSelected('#libType');
   const q = $('#libSearch').value.trim().toLowerCase();
 
   const filtered = EXERCISES.filter(e =>
-    (!bp || e.bodyPart === bp) &&
-    (!tp || e.type === tp) &&
+    (bpSet.size === 0 || bpSet.has(e.bodyPart)) &&
+    (tpSet.size === 0 || tpSet.has(e.type)) &&
     (!q || e.name.toLowerCase().includes(q))
   );
 
@@ -8881,6 +8946,7 @@ async function init() {
   $('#libTotalCount').textContent = EXERCISES.length;
 
   populateBodyPartSelects();
+  populateTypeSelects();
   populateProgressExercises();
   renderExerciseGrid();
   updateProgressFilterSummary();
@@ -8893,8 +8959,9 @@ async function init() {
     t.addEventListener('click', () => switchView(t.dataset.view))
   );
 
-  // Log filters
-  ['#filterBodyPart', '#filterType'].forEach(s => $(s).addEventListener('change', renderExerciseGrid));
+  // Log filters — chip-multi widgets wire their own onChange in
+  // populateBodyPartSelects / populateTypeSelects; only the search box
+  // still needs an input listener.
   $('#searchExercise').addEventListener('input', renderExerciseGrid);
 
   // "Change exercise" — clear selection and bring back the grid
@@ -8945,11 +9012,8 @@ async function init() {
       renderHistory();
     });
   });
-  ['#historyBodyPart', '#historyType'].forEach(s => $(s).addEventListener('change', renderHistory));
-
-  // Progress filters — changing them only refreshes the exercise list, doesn't auto-render
-  ['#progressBodyPart', '#progressType'].forEach(s =>
-    $(s).addEventListener('change', () => { populateProgressExercises(); }));
+  // History + Progress filter chip-multis wire their own onChange in
+  // populateBodyPartSelects / populateTypeSelects — no extra listeners needed.
   $$('#progressPills .pill').forEach(p => {
     p.addEventListener('click', () => {
       $$('#progressPills .pill').forEach(x => x.classList.remove('active'));
@@ -8979,8 +9043,7 @@ async function init() {
     renderProgress();
   });
 
-  // Library
-  ['#libBodyPart', '#libType'].forEach(s => $(s).addEventListener('change', renderLibrary));
+  // Library — chip-multi handles body part + type onChange; only search box left
   $('#libSearch').addEventListener('input', renderLibrary);
 
   // Detail
