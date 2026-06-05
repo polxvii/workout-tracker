@@ -13,7 +13,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Workout Tracker</title>
-<meta name="app-version" content="1.07">
+<meta name="app-version" content="1.08">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
@@ -982,7 +982,7 @@ select {
         Your data is private. Only you can access it.
       </div>
       <div style="text-align:center; font-size:10px; color:var(--text-faint); margin-top:6px; opacity:0.7;">
-        v1.07
+        v1.08
       </div>
     </div>
   </div>
@@ -1566,7 +1566,7 @@ select {
 
     <!-- VERSION FOOTER -->
     <div style="text-align:center; padding:16px 0; font-size:11px; color:var(--text-faint);">
-      Workout Tracker v1.07
+      Workout Tracker v1.08
     </div>
 
   </section>
@@ -4786,7 +4786,9 @@ function renderExerciseGrid() {
         showDetail(btn.dataset.info, 'strength');
       });
     });
-    activateImagePlaceholders(grid);
+    // Eager-load: single-card render — IO can mis-fire after layout shifts
+    // from full grid → single card, leaving the image blank.
+    activateImagePlaceholders(grid, { eager: true });
     return;
   }
 
@@ -5334,7 +5336,7 @@ function renderProgress() {
         </div>
       </div>`;
     wireProgressBackBtn();
-    activateImagePlaceholders(content);
+    activateImagePlaceholders(content, { eager: true });
     return;
   }
 
@@ -5519,7 +5521,7 @@ function renderProgress() {
     </div>`;
 
   wireProgressBackBtn();
-  activateImagePlaceholders(content);
+  activateImagePlaceholders(content, { eager: true });
   // Wire both period toggles to the same global so they stay in sync —
   // tapping "Weekly" on one chart switches both.
   const switchPeriod = (p) => {
@@ -5715,7 +5717,7 @@ function renderProgressAll() {
     });
   });
 
-  activateImagePlaceholders(content);
+  activateImagePlaceholders(content, { eager: true });
 }
 
 // ============================================================
@@ -5760,7 +5762,9 @@ function showDetail(id, returnView) {
   $('#detailName').textContent = ex.name;
   $('#detailMeta').textContent = `${ex.bodyPart} · ${ex.type}`;
   $('#detailDesc').textContent = ex.desc;
-  activateImagePlaceholders($('#detailImg'));
+  // Eager-load: single hero image, render is triggered as the detail view
+  // becomes visible — IO can race the view transition.
+  activateImagePlaceholders($('#detailImg'), { eager: true });
   switchView('detail');
 }
 
