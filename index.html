@@ -1386,6 +1386,7 @@ select {
             <label id="cardioActivityLabel">Activity</label>
             <button type="button" id="cardioChangeActivityBtn" style="display:none; background:transparent; border:none; color:var(--primary); font-size:13px; cursor:pointer; font-family:inherit; padding:0;">Change</button>
           </div>
+          <input type="search" id="cardioSearch" class="search-input" placeholder="Search activity…" style="margin-bottom:8px;">
           <div class="exercise-grid" id="cardioActivityGrid" style="grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));"></div>
         </div>
 
@@ -5913,6 +5914,13 @@ function saveCustomCardio() {
   selectedCardioActivity = id;
   renderCardioActivityGrid();
   populateCardioActivitySelects();
+  // Mirror what tapping an activity card does: show the input form
+  const a = cardioActivityById(id);
+  if (a && a.units && a.units[0]) $('#cardioDistanceUnit').value = a.units[0];
+  $('#cardioMachineRow').style.display = 'none';
+  $('#cardioInputs').style.display = 'block';
+  showCardioStage('picker');
+  setTimeout(() => $('#cardioInputs').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   showToast('Added "' + name + '"');
 }
 
@@ -7327,16 +7335,20 @@ function renderCardioActivityGrid() {
       }
     }
 
-    // No selection — show the full grid
+    // No selection — show the full grid (with search filter)
     if (label) label.textContent = 'Activity';
     if (changeBtn) changeBtn.style.display = 'none';
+    const cardioQ = ($('#cardioSearch')?.value || '').trim().toLowerCase();
+    const visibleActivities = allCardioActivities().filter(a =>
+      !cardioQ || a.name.toLowerCase().includes(cardioQ)
+    );
     const addTile = `
       <div class="exercise-card add-custom-card" data-add-custom="cardio"
            style="display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px; border:1px dashed var(--border); background:transparent; color:var(--text-dim);">
         <div style="font-size:28px; line-height:1;">+</div>
         <div style="font-size:12px; font-weight:600;">Add custom</div>
       </div>`;
-    grid.innerHTML = allCardioActivities().map(a => `
+    grid.innerHTML = visibleActivities.map(a => `
       <div class="exercise-card ${selectedCardioActivity === a.id ? 'selected' : ''}" data-activity="${a.id}">
         ${a.isCustom ? `<button class="exercise-delete-btn" data-delete-custom="${a.id}" aria-label="Delete custom activity" title="Delete">×</button>` : ''}
         <div class="exercise-img">${cardioImage(a)}</div>
@@ -9715,6 +9727,7 @@ async function init() {
   $('#cardioDate').value = todayISO();
   renderCardioActivityGrid();
   populateCardioActivitySelects();
+  $('#cardioSearch').addEventListener('input', renderCardioActivityGrid);
   updateCardioProgressFilterSummary();
 
   $('#cardioSaveBtn').addEventListener('click', saveCardioSession);
