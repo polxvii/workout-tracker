@@ -3986,7 +3986,7 @@ const EXERCISES = [
     type: 'Bar',
     primaryMuscle: 'Lats',
     secondaryMuscles: ['Upper Back', 'Biceps'],
-    slug: 'upper-back/dumbbell-one-arm-bent-over-row',
+    isLandmine: true,
     desc: 'Staggered stance, single-arm landmine row at angle — heavy lat focus with stable trunk.',
   },
   {
@@ -3996,7 +3996,7 @@ const EXERCISES = [
     type: 'Bar',
     primaryMuscle: 'Upper Back',
     secondaryMuscles: ['Lats', 'Biceps'],
-    slug: 'upper-back/lever-t-bar-row',
+    isLandmine: true,
     desc: 'Landmine + V-handle clipped under, row to chest. Heavy compound back builder.',
   },
   {
@@ -4017,7 +4017,7 @@ const EXERCISES = [
     type: 'Bar',
     primaryMuscle: 'Shoulders (front)',
     secondaryMuscles: ['Triceps', 'Chest (upper)'],
-    slug: 'delts/dumbbell-one-arm-shoulder-press',
+    isLandmine: true,
     desc: 'Landmine press from shoulder height — natural arc, shoulder-friendly overhead variation.',
   },
   {
@@ -4027,7 +4027,7 @@ const EXERCISES = [
     type: 'Bar',
     primaryMuscle: 'Shoulders (front)',
     secondaryMuscles: ['Shoulders (side)', 'Triceps'],
-    slug: 'delts/dumbbell-arnold-press',
+    isLandmine: true,
     desc: 'Press with rotation through the lift — anterior + lateral delt sweep in one rep.',
   },
   {
@@ -4037,7 +4037,7 @@ const EXERCISES = [
     type: 'Bar',
     primaryMuscle: 'Obliques',
     secondaryMuscles: ['Transverse Abs', 'Lower Back'],
-    slug: 'abs/cable-twist',
+    isLandmine: true,
     desc: 'Hold bar at chest centerline, press out, resist rotation. Anti-rotation core staple.',
   },
   {
@@ -4047,7 +4047,7 @@ const EXERCISES = [
     type: 'Bar',
     primaryMuscle: 'Quads',
     secondaryMuscles: ['Glutes', 'Core'],
-    slug: 'glutes/barbell-front-squat',
+    isLandmine: true,
     desc: 'Hold bar end at chest, squat down. Upright torso, knees track over toes.',
   },
   {
@@ -4057,7 +4057,7 @@ const EXERCISES = [
     type: 'Bar',
     primaryMuscle: 'Hamstrings',
     secondaryMuscles: ['Glutes', 'Lower Back'],
-    slug: 'glutes/barbell-romanian-deadlift',
+    isLandmine: true,
     desc: 'Landmine RDL — single arm or two-hand, hinge back, control the descent.',
   },
   {
@@ -4067,7 +4067,7 @@ const EXERCISES = [
     type: 'Bar',
     primaryMuscle: 'Glutes',
     secondaryMuscles: ['Hamstrings'],
-    slug: 'glutes/barbell-glute-bridge',
+    isLandmine: true,
     desc: 'Bar end on hips, drive hips up forcefully, full glute lockout at top.',
   },
   {
@@ -4077,7 +4077,7 @@ const EXERCISES = [
     type: 'Bar',
     primaryMuscle: 'Glutes',
     secondaryMuscles: ['Quads', 'Hamstrings'],
-    slug: 'glutes/barbell-rear-lunge',
+    isLandmine: true,
     desc: 'Hold bar at shoulder, step back into lunge, drive front heel through to return.',
   },
   {
@@ -4087,7 +4087,7 @@ const EXERCISES = [
     type: 'Bar',
     primaryMuscle: 'Biceps',
     secondaryMuscles: ['Forearms'],
-    slug: 'biceps/barbell-curl',
+    isLandmine: true,
     desc: 'Curl the landmine bar — fixed arc spares the elbow and overloads the bicep stretch.',
   },
   {
@@ -4097,7 +4097,7 @@ const EXERCISES = [
     type: 'Bar',
     primaryMuscle: 'Triceps',
     secondaryMuscles: ['Shoulders (front)'],
-    slug: 'triceps/barbell-standing-overhead-triceps-extension',
+    isLandmine: true,
     desc: 'Stand facing the landmine, extend bar overhead. Lockout at top, lower behind head.',
   },
 
@@ -4108,6 +4108,33 @@ const BODY_PARTS = [...new Set(EXERCISES.map(e => e.bodyPart))].sort();
 // ============================================================
 // EXERCISE ILLUSTRATIONS
 // ============================================================
+// Generic landmine equipment graphic — shown for landmine variants where
+// JC doesn't ship a proper anatomical GIF. We deliberately don't pull a
+// substitute GIF of a DB or barbell movement because the wrong equipment
+// would confuse the user when scrolling the grid. A plain landmine
+// silhouette is unambiguous: the bar pinned at one end, plates on the
+// lifted end, no person. The exercise NAME on the card carries the rest.
+function landmineSvg() {
+  return `
+  <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:100%; background:#ffffff;">
+    <!-- Floor line -->
+    <line x1="10" y1="170" x2="190" y2="170" stroke="#94a3b8" stroke-width="2"/>
+    <!-- Floor socket / pivot housing -->
+    <rect x="22" y="156" width="26" height="14" rx="3" fill="#475569"/>
+    <circle cx="35" cy="163" r="3.5" fill="#1e293b"/>
+    <!-- Barbell rising at ~35° from the socket -->
+    <line x1="35" y1="160" x2="172" y2="55" stroke="#334155" stroke-width="6" stroke-linecap="round"/>
+    <!-- Plate stack on the lifted end -->
+    <circle cx="172" cy="55" r="24" fill="#1e293b" stroke="#0f172a" stroke-width="2"/>
+    <circle cx="158" cy="65" r="22" fill="#334155" stroke="#0f172a" stroke-width="2" opacity="0.85"/>
+    <circle cx="172" cy="55" r="5" fill="#64748b"/>
+    <!-- Subtle handle ring near the socket -->
+    <circle cx="35" cy="163" r="6" fill="none" stroke="#1e293b" stroke-width="1.5"/>
+    <!-- Label -->
+    <text x="100" y="192" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="#64748b" letter-spacing="1">LANDMINE</text>
+  </svg>`;
+}
+
 function exerciseSvg(id) {
   const ex = EXERCISES.find(e => e.id === id);
   const colors = {
@@ -4468,6 +4495,11 @@ function activateImagePlaceholders(rootEl, opts) {
 function exerciseImage(id) {
   const ex = EXERCISES.find(e => e.id === id);
   if (!ex) return exerciseSvg(id);
+  // Landmine variants without a real-equipment image use the generic
+  // landmine SVG. Shown as a static svg, no lazy loading needed.
+  if (ex.isLandmine && !ex.slug && !ex.wikiPath && !ex.image) {
+    return landmineSvg();
+  }
   // Pick the best available image source for this exercise. Order:
   //   1. ex.slug      → JahelCuadrado CDN (animated anatomical, preferred)
   //   2. ex.wikiPath  → Wikimedia Commons (real photo, CC-licensed)
@@ -4895,6 +4927,49 @@ function escapeHtml(s) {
 function exerciseById(id) { return EXERCISES.find(e => e.id === id); }
 
 // ============================================================
+// PERSONAL RECORD (PR)
+// ============================================================
+// Returns the heaviest weight ever logged for this exercise across all
+// of the user's sessions, plus reps at that weight (handy as a label).
+// Returns null when the exercise has no logs yet OR no logged set has a
+// numeric weight > 0. Caller is responsible for rendering "—" / hiding
+// the PR badge in that case.
+function getPR(exerciseId) {
+  let best = null;
+  for (const log of state.logs) {
+    // In-memory log shape (flat): { id, date, exerciseId, sets }
+    // for strength; { activity, durationMin, ... } for cardio. We
+    // discriminate by presence of exerciseId rather than a type tag.
+    if (log.exerciseId !== exerciseId) continue;
+    const sets = log.sets || [];
+    for (const s of sets) {
+      const w = parseFloat(s.weight);
+      if (!isFinite(w) || w <= 0) continue;
+      const reps = parseInt(s.reps, 10) || 0;
+      if (!best || w > best.weight || (w === best.weight && reps > best.reps)) {
+        best = { weight: w, reps, date: log.date };
+      }
+    }
+  }
+  return best;
+}
+
+// Returns true if the given set (in a specific log) ties or beats the
+// all-time PR for that exercise — used to render a ⭐ badge in History.
+function isSetPR(log, setIdx) {
+  if (!log.exerciseId) return false;
+  const pr = getPR(log.exerciseId);
+  if (!pr) return false;
+  const s = (log.sets || [])[setIdx];
+  if (!s) return false;
+  const w = parseFloat(s.weight);
+  const reps = parseInt(s.reps, 10) || 0;
+  // Tied with PR (same weight AND same reps) — count as PR too. Multiple
+  // sessions hitting the same heaviest weight all get the star.
+  return w === pr.weight && reps === pr.reps;
+}
+
+// ============================================================
 // DROPDOWN POPULATION
 // ============================================================
 function populateBodyPartSelects() {
@@ -5041,7 +5116,13 @@ function renderSetsCard() {
   if (!state.selectedExercise) { card.style.display = 'none'; return; }
   card.style.display = 'block';
   const ex = exerciseById(state.selectedExercise);
-  $('#setsCardTitle').textContent = ex.name + ' — sets';
+  // Title + PR badge. PR (max weight ever logged for this exercise) makes
+  // it obvious what bar you're chasing this session. Hidden if no PR yet.
+  const pr = getPR(ex.id);
+  const prBadge = pr
+    ? ` <span style="font-size:12px; font-weight:500; color:var(--text-dim); margin-left:6px;">· PR ${pr.weight} × ${pr.reps}</span>`
+    : '';
+  $('#setsCardTitle').innerHTML = escapeHtml(ex.name) + ' — sets' + prBadge;
 
   const container = $('#setsContainer');
   container.innerHTML = currentSets.map((s, i) => `
@@ -5268,10 +5349,14 @@ function renderHistory() {
             </div>
           </div>
           <div class="log-sets">
-            ${l.sets.map((s, i) => `
-              <div class="set-chip" title="${escapeHtml(s.note || '')}">
-                Set ${i + 1}: <strong>${s.reps}</strong> reps${s.weight != null ? ` × <strong>${s.weight}</strong>` : ''}
-              </div>`).join('')}
+            ${l.sets.map((s, i) => {
+              const isPR = isSetPR(l, i);
+              const prStar = isPR ? ' <span title="Personal Record" style="color:#f59e0b;">⭐</span>' : '';
+              return `
+              <div class="set-chip${isPR ? ' set-chip-pr' : ''}" title="${escapeHtml(s.note || (isPR ? 'Personal Record' : ''))}">
+                Set ${i + 1}: <strong>${s.reps}</strong> reps${s.weight != null ? ` × <strong>${s.weight}</strong>` : ''}${prStar}
+              </div>`;
+            }).join('')}
           </div>
         </div>`;
     }).join('')}`;
@@ -5583,6 +5668,10 @@ function renderProgress() {
   const first = sessions[0];
   const last = sessions[sessions.length - 1];
 
+  // All-time PR (not just within the current date filter) — separate from
+  // "Max weight" which respects the active period filter.
+  const pr = getPR(exId);
+
   content.innerHTML = `
     <button class="back-link" id="progressBackBtn" style="margin-bottom:8px;">← Back to all exercises</button>
     <div class="card">
@@ -5591,6 +5680,7 @@ function renderProgress() {
         <div>
           <div style="font-weight:600; font-size:16px;">${escapeHtml(ex.name)}</div>
           <div class="log-meta">${escapeHtml(ex.bodyPart)} · ${escapeHtml(ex.type)} · ${totalSessions} session${totalSessions === 1 ? '' : 's'}</div>
+          ${pr ? `<div style="margin-top:4px; font-size:13px; color:var(--primary); font-weight:600;">⭐ PR ${pr.weight} × ${pr.reps} <span style="color:var(--text-faint); font-weight:400;">on ${formatDate(pr.date)}</span></div>` : ''}
         </div>
       </div>
 
@@ -5871,11 +5961,14 @@ function renderProgressAll() {
             <th style="text-align:center">Avg reps</th>
             <th style="text-align:right">Avg wt</th>
             <th style="text-align:right">Max wt</th>
+            <th style="text-align:right" title="All-time personal record">PR</th>
             <th style="text-align:right">Total reps</th>
           </tr>
         </thead>
         <tbody>
-          ${rows.map(r => `
+          ${rows.map(r => {
+            const pr = getPR(r.ex.id);
+            return `
             <tr style="cursor:pointer;" data-pick="${r.ex.id}">
               <td>
                 <div style="font-weight:600">${escapeHtml(r.ex.name)}</div>
@@ -5886,8 +5979,10 @@ function renderProgressAll() {
               <td style="text-align:center">${r.avgReps.toFixed(1)}</td>
               <td style="text-align:right">${r.avgWeight != null ? r.avgWeight.toFixed(1) : '—'}</td>
               <td style="text-align:right">${r.maxWeight != null ? r.maxWeight : '—'}</td>
+              <td style="text-align:right; color:var(--primary); font-weight:600;">${pr ? pr.weight + '×' + pr.reps : '—'}</td>
               <td style="text-align:right">${r.totalReps}</td>
-            </tr>`).join('')}
+            </tr>`;
+          }).join('')}
         </tbody>
       </table>
       </div>
