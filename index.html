@@ -317,6 +317,88 @@ body { padding-bottom: 80px; }
   user-select: none;
 }
 .ms-option:hover { background: var(--surface-2); }
+/* ── Rest Timer ─────────────────────────────────────────────────────── */
+.rest-timer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+  flex-wrap: wrap;
+}
+.rest-timer-row label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.rest-timer-row .rt-chip {
+  padding: 5px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  touch-action: manipulation;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.rest-timer-row .rt-chip.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+.rest-timer-row input[type="number"] {
+  width: 60px;
+  padding: 5px 8px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: inherit;
+  display: none; /* shown only when "manual" chip is active */
+}
+/* Countdown banner — fixed bottom, shows after saving a set */
+#restTimerBanner {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  background: var(--surface);
+  border-top: 2px solid var(--primary);
+  padding: 12px 16px;
+  z-index: 9000;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.4);
+}
+#restTimerBanner .rt-label {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+#restTimerBanner .rt-count {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+  min-width: 56px;
+  text-align: center;
+}
+#restTimerBanner .rt-count.warning { color: var(--danger); }
+#restTimerBanner button {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
 /* Custom checkbox so the checkmark is clearly visible on dark theme —
    iOS Safari's accent-color rendering is unreliable. Matches the
    "Keep me signed in" pattern: square with 2px accent border, fills
@@ -1244,8 +1326,28 @@ select {
       </div>
     </div>
 
+    <!-- Rest Timer countdown banner (fixed bottom, shown after saving a set) -->
+    <div id="restTimerBanner">
+      <div>
+        <div class="rt-label">⏱ Rest</div>
+        <div class="rt-count" id="restTimerCount">1:30</div>
+      </div>
+      <button id="restTimerSkipBtn">Skip</button>
+    </div>
+
     <div class="card" id="setsCard" style="display:none;">
       <div class="card-title" id="setsCardTitle">Sets</div>
+
+      <!-- Rest timer preference: persists across sessions -->
+      <div class="rest-timer-row">
+        <label>⏱ Rest</label>
+        <button type="button" class="rt-chip" data-rt="0">Off</button>
+        <button type="button" class="rt-chip active" data-rt="60">60s</button>
+        <button type="button" class="rt-chip" data-rt="90">90s</button>
+        <button type="button" class="rt-chip" data-rt="120">120s</button>
+        <button type="button" class="rt-chip" data-rt="manual">Custom</button>
+        <input type="number" id="rtManualInput" min="10" max="600" placeholder="sec" value="90">
+      </div>
 
       <div class="set-headers">
         <div>#</div>
@@ -5136,6 +5238,105 @@ function escapeHtml(s) {
 // Lookup helpers — search the user's custom additions before the
 // bundled dataset so a custom exercise CAN shadow a built-in (e.g.
 // user makes their own "Bench Press" with extra notes).
+// ============================================================
+// REST TIMER
+// ============================================================
+// Preference: 0 = off, 60/90/120 = fixed seconds, 'manual' = use rtManualSecs
+let rtSetting   = 60;      // active chip value (0 | 60 | 90 | 120 | 'manual')
+let rtManualSecs = 90;     // value for the manual input
+let rtInterval  = null;    // setInterval handle
+let rtRemaining = 0;
+
+function rtGetSeconds() {
+  if (rtSetting === 0 || rtSetting === '0') return 0;
+  if (rtSetting === 'manual') return Math.max(10, Math.min(600, rtManualSecs || 90));
+  return Number(rtSetting);
+}
+
+function rtFmt(s) {
+  const m = Math.floor(s / 60);
+  const sec = String(s % 60).padStart(2, '0');
+  return m > 0 ? `${m}:${sec}` : `0:${sec}`;
+}
+
+function rtStart() {
+  const secs = rtGetSeconds();
+  if (!secs) return;
+  rtStop();                   // clear any running timer first
+  rtRemaining = secs;
+  const banner  = $('#restTimerBanner');
+  const display = $('#restTimerCount');
+  display.textContent = rtFmt(rtRemaining);
+  display.classList.remove('warning');
+  banner.style.display = 'flex';
+
+  rtInterval = setInterval(() => {
+    rtRemaining--;
+    display.textContent = rtFmt(rtRemaining);
+    if (rtRemaining <= 10) display.classList.add('warning');
+    if (rtRemaining <= 0) {
+      rtStop();
+      // Vibrate on iOS PWA when timer ends (if supported)
+      try { navigator.vibrate && navigator.vibrate([300, 100, 300]); } catch(_) {}
+    }
+  }, 1000);
+}
+
+function rtStop() {
+  if (rtInterval) { clearInterval(rtInterval); rtInterval = null; }
+  const banner = $('#restTimerBanner');
+  if (banner) banner.style.display = 'none';
+  const display = $('#restTimerCount');
+  if (display) display.classList.remove('warning');
+}
+
+// Persist rest timer preference in localStorage (not Supabase — device-level UX pref)
+const RT_PREF_KEY = 'wt_rest_timer_pref';
+function rtLoadPref() {
+  try {
+    const raw = localStorage.getItem(RT_PREF_KEY);
+    if (!raw) return;
+    const { setting, manual } = JSON.parse(raw);
+    rtSetting    = setting ?? 60;
+    rtManualSecs = manual  ?? 90;
+  } catch (_) {}
+}
+function rtSavePref() {
+  try { localStorage.setItem(RT_PREF_KEY, JSON.stringify({ setting: rtSetting, manual: rtManualSecs })); } catch (_) {}
+}
+
+function rtWireChips() {
+  const chips = document.querySelectorAll('.rt-chip');
+  const manualInput = $('#rtManualInput');
+
+  // Restore saved preference into UI
+  chips.forEach(c => {
+    const v = c.dataset.rt;
+    c.classList.toggle('active', String(v) === String(rtSetting));
+  });
+  if (String(rtSetting) === 'manual') manualInput.style.display = 'inline-block';
+  if (manualInput) manualInput.value = rtManualSecs;
+
+  chips.forEach(c => {
+    c.addEventListener('click', () => {
+      chips.forEach(x => x.classList.remove('active'));
+      c.classList.add('active');
+      rtSetting = c.dataset.rt === '0' ? 0 : (c.dataset.rt === 'manual' ? 'manual' : Number(c.dataset.rt));
+      manualInput.style.display = rtSetting === 'manual' ? 'inline-block' : 'none';
+      rtStop(); // stop any running timer if user changes preference
+      rtSavePref();
+    });
+  });
+
+  if (manualInput) {
+    manualInput.addEventListener('change', () => {
+      rtManualSecs = Math.max(10, Math.min(600, Number(manualInput.value) || 90));
+      manualInput.value = rtManualSecs;
+      rtSavePref();
+    });
+  }
+}
+
 function exerciseById(id) {
   for (const e of state.customExercises || []) if (e.id === id) return e;
   return EXERCISES.find(e => e.id === id);
@@ -5609,6 +5810,9 @@ function saveCurrentWorkout() {
   saveState();
 
   showToast(`Saved — ${validSets.length} set${validSets.length === 1 ? '' : 's'}`);
+
+  // Start rest timer (no-op when Off is selected)
+  rtStart();
 
   currentSets = [{ reps: '', weight: '', note: '' }];
   state.selectedExercise = null;
@@ -9725,6 +9929,11 @@ async function init() {
   setProgressRange(7);
 
   $('#libTotalCount').textContent = allExercises().length;
+
+  // Rest timer: load saved preference and wire UI
+  rtLoadPref();
+  rtWireChips();
+  $('#restTimerSkipBtn').addEventListener('click', rtStop);
 
   populateBodyPartSelects();
   populateTypeSelects();
