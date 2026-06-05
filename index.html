@@ -5833,6 +5833,7 @@ function saveCustomExercise() {
     isCustom: true,
   });
   saveState();
+  syncCustomToRemote().catch(e => console.warn('Custom sync failed:', e));
   closeCustomExerciseModal();
   // Auto-select the freshly-added exercise so the user can immediately log
   // their first set without an extra tap.
@@ -5857,6 +5858,7 @@ function deleteCustomExercise(id) {
   state.logs = state.logs.filter(l => l.exerciseId !== id);
   if (state.selectedExercise === id) state.selectedExercise = null;
   saveState();
+  syncCustomToRemote().catch(e => console.warn('Custom sync failed:', e));
   renderExerciseGrid();
   renderSetsCard();
   populateProgressExercises();
@@ -5877,6 +5879,7 @@ function deleteCustomActivity(id) {
   state.logs = state.logs.filter(l => l.activity !== id);
   if (selectedCardioActivity === id) selectedCardioActivity = null;
   saveState();
+  syncCustomToRemote().catch(e => console.warn('Custom sync failed:', e));
   renderCardioActivityGrid();
   populateCardioActivitySelects();
   showToast('Deleted "' + a.name + '"');
@@ -5905,6 +5908,7 @@ function saveCustomCardio() {
     isCustom: true,
   });
   saveState();
+  syncCustomToRemote().catch(e => console.warn('Custom sync failed:', e));
   closeCustomCardioModal();
   selectedCardioActivity = id;
   renderCardioActivityGrid();
@@ -8844,6 +8848,61 @@ function rowToLog(row) {
   return log;
 }
 
+// ---- Custom definition sync (type = 'custom_exercise' | 'custom_activity') ----
+// We reuse the workouts table with distinct type strings so no schema change is
+// needed. date is stored as '' (empty string) — it's required by the table but
+// meaningless for definitions. RLS ensures users only see their own rows.
+
+function customExToRow(ex) {
+  return {
+    id: ex.id,
+    user_id: currentUser.id,
+    type: 'custom_exercise',
+    date: '',
+    data: ex,
+    updated_at: new Date().toISOString(),
+  };
+}
+function customActivityToRow(a) {
+  return {
+    id: a.id,
+    user_id: currentUser.id,
+    type: 'custom_activity',
+    date: '',
+    data: a,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+// Upsert all current custom definitions to Supabase. Called after every
+// add/delete so other devices get the change on their next pull.
+async function syncCustomToRemote() {
+  if (!sb || !currentUser) return;
+  const rows = [
+    ...state.customExercises.map(customExToRow),
+    ...state.customActivities.map(customActivityToRow),
+  ];
+
+  // IDs that no longer exist locally must be deleted remotely.
+  const localCustomIds = new Set(rows.map(r => r.id));
+  const { data: remoteCustom } = await sb
+    .from('workouts')
+    .select('id')
+    .eq('user_id', currentUser.id)
+    .in('type', ['custom_exercise', 'custom_activity']);
+  const toDelete = (remoteCustom || []).map(r => r.id).filter(id => !localCustomIds.has(id));
+
+  if (rows.length) {
+    const { error } = await sb.from('workouts').upsert(rows);
+    if (error) console.warn('Custom sync upsert error:', error);
+  }
+  if (toDelete.length) {
+    const { error } = await sb.from('workouts').delete()
+      .eq('user_id', currentUser.id).in('id', toDelete);
+    if (error) console.warn('Custom sync delete error:', error);
+  }
+}
+
 // Pull all rows for the current user from Supabase, replacing state.logs.
 // Returns the count pulled.
 async function pullFromRemote() {
@@ -8854,7 +8913,17 @@ async function pullFromRemote() {
     .eq('user_id', currentUser.id)
     .order('date', { ascending: false });
   if (error) throw error;
-  state.logs = (data || []).map(rowToLog);
+
+  // Separate workout logs from custom definitions (same table, different type).
+  const rows = data || [];
+  const logRows    = rows.filter(r => r.type !== 'custom_exercise' && r.type !== 'custom_activity');
+  const customExRows  = rows.filter(r => r.type === 'custom_exercise');
+  const customActRows = rows.filter(r => r.type === 'custom_activity');
+
+  state.logs             = logRows.map(rowToLog);
+  state.customExercises  = customExRows.map(r => r.data);
+  state.customActivities = customActRows.map(r => r.data);
+
   lastSyncedIds = new Set(state.logs.map(l => l.id));
   saveStateLocal();
   return state.logs.length;
@@ -8870,6 +8939,8 @@ async function syncToRemote() {
     // Anything that disappeared from local → delete remotely.
     const toDelete = [...lastSyncedIds].filter(id => !localIds.has(id));
     // Anything in local → upsert (covers both new and edited rows).
+    // Custom definitions are synced separately via syncCustomToRemote so
+    // we only include workout logs here (type = 'strength' | 'cardio').
     const rowsToUpsert = state.logs.map(logToRow);
 
     if (rowsToUpsert.length) {
