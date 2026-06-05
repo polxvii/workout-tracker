@@ -7604,12 +7604,12 @@ const CARDIO_ACTIVITIES = [
   { id: 'running',    name: 'Running',          units: ['km', 'mi'],        slug: 'cardio/run' },
   { id: 'treadmill',  name: 'Treadmill',        units: ['km', 'mi'], machine: true, slug: 'cardio/walking-on-incline-treadmill' },
   { id: 'walking',    name: 'Walking',          units: ['km', 'mi'],        slug: 'cardio/back-and-forth-step' },
-  { id: 'hiking',     name: 'Hiking',           units: ['km', 'mi'] },
+  { id: 'hiking',     name: 'Hiking',           units: ['km', 'mi'],        slug: 'cardio/walking-high-knees-lunge' },
   // Cycling family
-  { id: 'cycling',    name: 'Cycling',          units: ['km', 'mi'] },
+  { id: 'cycling',    name: 'Cycling',          units: ['km', 'mi'],        image: 'Bicycling' },
   { id: 'spinning',   name: 'Indoor Bike',      units: ['km', 'mi'], machine: true, slug: 'cardio/stationary-bike-run-v-3' },
   // Machines
-  { id: 'rowing',     name: 'Rowing',           units: ['m', 'km'], machine: true },
+  { id: 'rowing',     name: 'Rowing',           units: ['m', 'km'], machine: true, image: 'Rowing_Stationary' },
   { id: 'elliptical', name: 'Elliptical',       units: ['km', 'mi'], machine: true, slug: 'cardio/walk-elliptical-cross-trainer' },
   { id: 'stair',      name: 'StairMaster',      units: ['floors', 'min'], machine: true, slug: 'cardio/walking-on-stepmill' },
   // Water
@@ -7620,7 +7620,14 @@ const CARDIO_ACTIVITIES = [
   { id: 'burpees',    name: 'Burpees',          units: ['reps', 'min'],     slug: 'cardio/burpee' },
   { id: 'mtnclimber', name: 'Mountain Climbers',units: ['reps', 'min'],     slug: 'cardio/mountain-climber' },
   { id: 'bearcrawl',  name: 'Bear Crawl',       units: ['min', 'm'],        slug: 'cardio/bear-crawl' },
-  { id: 'battlerope', name: 'Battle Rope',      units: ['min', 'sets'] },
+  { id: 'battlerope', name: 'Battle Rope',      units: ['min', 'sets'],     image: 'Battling_Ropes' },
+  { id: 'airbike',    name: 'Assault/Air Bike', units: ['min', 'km'], machine: true, image: 'Air_Bike' },
+  { id: 'sledpush',   name: 'Sled Push',        units: ['min', 'm'],        image: 'Prowler_Sprint' },
+  { id: 'skaterhops', name: 'Skater Hops',      units: ['reps', 'min'],     slug: 'cardio/skater-hops' },
+  { id: 'jumpjacks',  name: 'Jumping Jacks',    units: ['reps', 'min'],     slug: 'cardio/jack-jump-male' },
+  { id: 'highknees',  name: 'High Knees',       units: ['reps', 'min'],     slug: 'cardio/high-knee-against-wall' },
+  { id: 'skistep',    name: 'Ski Step',         units: ['min', 'reps'],     slug: 'cardio/ski-step' },
+  { id: 'scissorjump', name: 'Scissor Jumps',   units: ['reps', 'min'],     slug: 'cardio/scissor-jumps-male' },
   { id: 'boxing',     name: 'Boxing',           units: ['min', 'rounds'] },
   // Other generic categories
   { id: 'hiit',       name: 'HIIT',             units: ['min'],             slug: 'cardio/burpee' },
@@ -7928,13 +7935,16 @@ function cardioImageSvg(activity) {
   </svg>`;
 }
 
-// Public cardioImage — uses the same lazy-load pattern as strength when the
-// activity has a JC slug, so cardio cards visually match the strength grid.
-// Activities without a slug (rowing, swimming, boxing, yoga, hiking, cycling,
-// other) fall back to the inline SVG illustration.
+// Public cardioImage — supports 3 sources:
+//   activity.slug  → JahelCuadrado animated GIF (via wsrv.nl proxy)
+//   activity.image → free-exercise-db static photo (same key format as exercises)
+//   neither        → inline SVG illustration fallback
 function cardioImage(activity) {
-  if (!activity.slug) return cardioImageSvg(activity);
-  const key = 'slug:' + activity.slug;
+  let key;
+  if (activity.slug)       key = 'slug:' + activity.slug;
+  else if (activity.image) key = activity.image;
+  else return cardioImageSvg(activity);
+
   const placeholderSrc = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
   return `<div class="img-holder" data-img-folder="${escapeHtml(key)}" style="width:100%; height:100%; position:relative;">
     <img src="${placeholderSrc}" alt="${escapeHtml(activity.name)}" decoding="async" style="width:100%; height:100%; object-fit:contain; background:#ffffff;">
