@@ -1206,7 +1206,7 @@ select {
 <nav class="tabs">
   <button class="tab active" data-view="strength">💪 Strength</button>
   <button class="tab" data-view="cardio">🏃 Cardio</button>
-  <button class="tab" data-view="exercises">🏋️ Exercises</button>
+  <button class="tab" data-view="exercises">📚 Library</button>
   <button class="tab" data-view="settings">⚙️ Settings</button>
 </nav>
 
@@ -1603,14 +1603,31 @@ select {
 
   <!-- EXERCISES VIEW (library only) -->
   <section class="view" id="view-exercises">
-    <div class="card">
-      <div class="card-title">Exercise library (<span id="libTotalCount">0</span> exercises)</div>
+    <!-- Sub-tab bar: Exercises | Stretching -->
+    <div class="tabs" style="background:transparent; border-bottom:1px solid var(--border); position:static; margin:0 -16px 12px; padding:0 16px;">
+      <button class="tab lib-subtab active" data-lib-view="exercises" style="font-size:12px; padding:10px 6px;">🏋️ Exercises</button>
+      <button class="tab lib-subtab" data-lib-view="stretching" style="font-size:12px; padding:10px 6px;">🧘 Stretching</button>
+    </div>
 
-      <div id="libBodyPart"></div>
-      <div id="libType"></div>
-      <input type="search" id="libSearch" class="search-input" style="margin-top:10px;" placeholder="Search by name…">
+    <!-- EXERCISES sub-tab -->
+    <div id="lib-view-exercises" class="lib-subview">
+      <div class="card">
+        <div class="card-title">Exercise library (<span id="libTotalCount">0</span> exercises)</div>
+        <div id="libBodyPart"></div>
+        <div id="libType"></div>
+        <input type="search" id="libSearch" class="search-input" style="margin-top:10px;" placeholder="Search by name…">
+        <div class="exercise-grid" id="libGrid" style="margin-top: 12px;"></div>
+      </div>
+    </div>
 
-      <div class="exercise-grid" id="libGrid" style="margin-top: 12px;"></div>
+    <!-- STRETCHING sub-tab -->
+    <div id="lib-view-stretching" class="lib-subview" style="display:none;">
+      <div class="card">
+        <div class="card-title">Stretching guide</div>
+        <div style="font-size:13px; color:var(--text-dim); margin-bottom:10px;">Tap any card to see the full stretch. Animated illustrations show which muscles are targeted.</div>
+        <div id="stretchBodyPart"></div>
+        <div class="exercise-grid" id="stretchGrid" style="margin-top: 12px;"></div>
+      </div>
     </div>
   </section>
 
@@ -6543,6 +6560,102 @@ function renderProgressAll() {
 // ============================================================
 // LIBRARY VIEW
 // ============================================================
+// ============================================================
+// STRETCHING DATASET
+// All 26 slugs HEAD-checked against JahelCuadrado CDN (0 failures).
+// Images served via wsrv.nl proxy (300px animated WebP).
+// ============================================================
+const STRETCHES = [
+  // Chest
+  { id: 'str-chest-behind-head',    name: 'Chest Stretch (Behind Head)',  bodyPart: 'Chest',     muscles: 'Pectorals, Front Delts',              slug: 'pectorals/behind-head-chest-stretch' },
+  { id: 'str-chest-shoulder',       name: 'Chest & Front Shoulder Stretch', bodyPart: 'Chest',   muscles: 'Pectorals, Anterior Deltoid',         slug: 'pectorals/chest-and-front-of-shoulder-stretch' },
+  { id: 'str-chest-dynamic',        name: 'Dynamic Chest Stretch',        bodyPart: 'Chest',     muscles: 'Pectorals',                           slug: 'pectorals/dynamic-chest-stretch-male' },
+  // Back
+  { id: 'str-back-kneeling-lat',    name: 'Kneeling Lat Stretch',         bodyPart: 'Back',      muscles: 'Latissimus Dorsi',                    slug: 'lats/kneeling-lat-stretch' },
+  { id: 'str-back-lateral',         name: 'Standing Lateral Stretch',     bodyPart: 'Back',      muscles: 'Lats, Obliques',                      slug: 'lats/standing-lateral-stretch' },
+  { id: 'str-back-upper',           name: 'Upper Back Stretch',           bodyPart: 'Back',      muscles: 'Rhomboids, Mid Traps',                slug: 'upper-back/upper-back-stretch' },
+  { id: 'str-back-lower',           name: 'Seated Lower Back Stretch',    bodyPart: 'Back',      muscles: 'Lower Back, Lats',                    slug: 'lats/seated-lower-back-stretch' },
+  { id: 'str-back-roller',          name: 'Thoracic Roller Stretch',      bodyPart: 'Back',      muscles: 'Thoracic Spine, Erectors',            slug: 'spine/roller-back-stretch' },
+  { id: 'str-back-spine',           name: 'Spine Stretch',                bodyPart: 'Back',      muscles: 'Spinal Erectors, Lower Back',         slug: 'spine/spine-stretch' },
+  // Shoulders
+  { id: 'str-sh-rear-delt',         name: 'Rear Delt Stretch',            bodyPart: 'Shoulders', muscles: 'Posterior Deltoid',                   slug: 'delts/rear-deltoid-stretch' },
+  { id: 'str-sh-front',             name: 'Front Shoulder Stretch',       bodyPart: 'Shoulders', muscles: 'Anterior Deltoid, Chest',             slug: 'pectorals/chest-and-front-of-shoulder-stretch' },
+  // Arms
+  { id: 'str-arms-tricep-overhead', name: 'Overhead Triceps Stretch',     bodyPart: 'Arms',      muscles: 'Triceps (Long Head)',                 slug: 'triceps/overhead-triceps-stretch' },
+  { id: 'str-arms-tricep',          name: 'Triceps Stretch',              bodyPart: 'Arms',      muscles: 'Triceps',                             slug: 'triceps/triceps-stretch' },
+  { id: 'str-arms-tricep-ball',     name: 'Seated Triceps Stretch',       bodyPart: 'Arms',      muscles: 'Triceps',                             slug: 'triceps/exercise-ball-seated-triceps-stretch' },
+  // Core
+  { id: 'str-core-iron-cross',      name: 'Iron Cross Stretch',           bodyPart: 'Core',      muscles: 'Obliques, Glutes, Hip Rotators',      slug: 'glutes/iron-cross-stretch' },
+  { id: 'str-core-lying-twist',     name: 'Lying Spinal Twist',           bodyPart: 'Core',      muscles: 'Obliques, Lower Back',                slug: 'glutes/bent-knee-lying-twist-male' },
+  // Legs
+  { id: 'str-legs-hamstring',       name: 'Hamstring Stretch',            bodyPart: 'Legs',      muscles: 'Hamstrings',                          slug: 'hamstrings/hamstring-stretch' },
+  { id: 'str-legs-runner',          name: "Runner's Stretch",             bodyPart: 'Legs',      muscles: 'Hamstrings, Hip Flexors',             slug: 'hamstrings/runners-stretch' },
+  { id: 'str-legs-quad',            name: 'Side-Lying Quad Stretch',      bodyPart: 'Legs',      muscles: 'Quadriceps, Hip Flexors',             slug: 'quads/lying-side-quads-stretch' },
+  { id: 'str-legs-calf-standing',   name: 'Standing Calf Stretch',        bodyPart: 'Legs',      muscles: 'Gastrocnemius, Soleus',               slug: 'calves/standing-calves-calf-stretch' },
+  { id: 'str-legs-calf-seated',     name: 'Seated Calf Stretch',          bodyPart: 'Legs',      muscles: 'Soleus, Achilles',                    slug: 'calves/seated-calf-stretch-male' },
+  { id: 'str-legs-world-greatest',  name: "World's Greatest Stretch",     bodyPart: 'Legs',      muscles: 'Hip Flexors, Hamstrings, Thoracic Spine', slug: 'hamstrings/world-greatest-stretch' },
+  // Hips
+  { id: 'str-hips-glute',           name: 'Seated Glute Stretch',         bodyPart: 'Hips',      muscles: 'Glutes, Piriformis',                  slug: 'glutes/seated-glute-stretch' },
+  { id: 'str-hips-piriformis',      name: 'Piriformis Stretch',           bodyPart: 'Hips',      muscles: 'Piriformis, Deep External Rotators',  slug: 'glutes/seated-piriformis-stretch' },
+  { id: 'str-hips-flexor',          name: 'Hip Flexor Stretch',           bodyPart: 'Hips',      muscles: 'Hip Flexors, Iliopsoas',              slug: 'glutes/exercise-ball-hip-flexor-stretch' },
+  { id: 'str-hips-frog',            name: 'Frog Stretch',                 bodyPart: 'Hips',      muscles: 'Hip Adductors, Groin',                slug: 'glutes/rocking-frog-stretch' },
+  { id: 'str-hips-glute-lying',     name: 'Lying Glute Stretch',          bodyPart: 'Hips',      muscles: 'Glutes',                              slug: 'glutes/assisted-lying-glutes-stretch' },
+];
+
+const STRETCH_BODY_PARTS = [...new Set(STRETCHES.map(s => s.bodyPart))].sort();
+
+function renderStretching() {
+  const bpSet = getChipMultiSelected('#stretchBodyPart');
+  const grid = $('#stretchGrid');
+  if (!grid) return;
+
+  const filtered = STRETCHES.filter(s =>
+    bpSet.size === 0 || bpSet.size === STRETCH_BODY_PARTS.length || bpSet.has(s.bodyPart)
+  );
+
+  grid.innerHTML = filtered.map(s => {
+    const gifUrl = SLUG_BASE + s.slug + '.gif';
+    const imgUrl = IMG_PROXY + encodeURIComponent(gifUrl) + IMG_PROXY_PARAMS;
+    const placeholderSrc = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+    return `
+    <div class="exercise-card" data-stretch-id="${s.id}" style="cursor:pointer;">
+      <div class="exercise-img">
+        <div class="img-holder" data-img-folder="slug:${s.slug}" style="width:100%;height:100%;position:relative;">
+          <img src="${placeholderSrc}" alt="${escapeHtml(s.name)}" decoding="async" style="width:100%;height:100%;object-fit:contain;background:#ffffff;">
+          <span class="img-fallback" style="display:none;width:100%;height:100%;position:absolute;inset:0;">${exerciseSvg('')}</span>
+        </div>
+      </div>
+      <div class="exercise-name">${escapeHtml(s.name)}</div>
+      <div class="exercise-meta" style="color:var(--primary);font-size:11px;">${escapeHtml(s.muscles)}</div>
+    </div>`;
+  }).join('');
+
+  activateImagePlaceholders(grid);
+
+  grid.querySelectorAll('[data-stretch-id]').forEach(card => {
+    card.addEventListener('click', () => showStretchDetail(card.dataset.stretchId));
+  });
+}
+
+function showStretchDetail(id) {
+  const s = STRETCHES.find(x => x.id === id);
+  if (!s) return;
+  const gifUrl = SLUG_BASE + s.slug + '.gif';
+  const imgUrl = IMG_PROXY + encodeURIComponent(gifUrl) + IMG_PROXY_PARAMS;
+  const placeholderSrc = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+  state.detailReturnView = 'exercises';
+  $('#detailImg').innerHTML = `
+    <div class="img-holder" data-img-folder="slug:${s.slug}" style="width:100%;height:100%;position:relative;">
+      <img src="${placeholderSrc}" alt="${escapeHtml(s.name)}" decoding="async" style="width:100%;height:100%;object-fit:contain;background:#ffffff;">
+      <span class="img-fallback" style="display:none;width:100%;height:100%;position:absolute;inset:0;">${exerciseSvg('')}</span>
+    </div>`;
+  $('#detailName').textContent = s.name;
+  $('#detailMeta').textContent = s.bodyPart + ' · Stretch';
+  $('#detailDesc').textContent = 'Targets: ' + s.muscles;
+  activateImagePlaceholders($('#detailImg'), { eager: true });
+  switchView('detail');
+}
+
 function renderLibrary() {
   const bpSet = getChipMultiSelected('#libBodyPart');
   const tpSet = getChipMultiSelected('#libType');
@@ -6936,7 +7049,12 @@ function switchView(view) {
   if (view === 'detail') $('nav.tabs').style.display = 'none';
   else $('nav.tabs').style.display = 'flex';
 
-  if (view === 'exercises') renderLibrary();
+  if (view === 'exercises') {
+    const active = document.querySelector('.lib-subtab.active');
+    const which = active ? active.dataset.libView : 'exercises';
+    if (which === 'stretching') renderStretching();
+    else renderLibrary();
+  }
   if (view === 'settings') updateExportPreview();
   if (view === 'strength') {
     // Restore whichever strength sub-view the user last used
@@ -9613,6 +9731,23 @@ async function init() {
 
   // Library — chip-multi handles body part + type onChange; only search box left
   $('#libSearch').addEventListener('input', renderLibrary);
+
+  // Library sub-tabs (Exercises | Stretching)
+  document.querySelectorAll('.lib-subtab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.lib-subtab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.lib-subview').forEach(v => v.style.display = 'none');
+      btn.classList.add('active');
+      const which = btn.dataset.libView;
+      const target = $('#lib-view-' + which);
+      if (target) target.style.display = 'block';
+      if (which === 'stretching') renderStretching();
+      else renderLibrary();
+    });
+  });
+
+  // Stretching body-part filter (body parts only, no type)
+  renderChipMulti('#stretchBodyPart', 'Body part', STRETCH_BODY_PARTS, () => renderStretching(), null);
 
   // Detail
   $('#detailBack').addEventListener('click', () => switchView(state.detailReturnView));
