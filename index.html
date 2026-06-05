@@ -3974,7 +3974,9 @@ const EXERCISES = [
     type: 'Bar',
     primaryMuscle: 'Upper Back',
     secondaryMuscles: ['Lats', 'Biceps', 'Rear Delts'],
-    slug: 'upper-back/barbell-one-arm-bent-over-row',
+    // Real landmine photo from Wikimedia Commons (CC-licensed).
+    // No JC slug exists for this movement.
+    wikiPath: '4/46/Landmine_Bent-Over_Rows.jpg',
     desc: 'Single-arm row with landmine bar, hinge over, drive elbow back. Brace core hard.',
   },
   {
@@ -4004,7 +4006,8 @@ const EXERCISES = [
     type: 'Bar',
     primaryMuscle: 'Chest (upper)',
     secondaryMuscles: ['Shoulders (front)', 'Triceps'],
-    slug: 'pectorals/dumbbell-incline-one-arm-press',
+    // Real landmine press photo (Landmine Linear Jammer) from free-exercise-db.
+    image: 'Landmine_Linear_Jammer',
     desc: 'Single-arm landmine press at upward angle — hits upper chest while sparing the shoulder joint.',
   },
   {
@@ -4314,9 +4317,11 @@ const imgFailed   = new Set();   // image folder name -> known-bad (skip retry)
 const imgInflight = new Map();   // image folder name -> Promise (dedupe parallel requests)
 
 function imageUrl(key) {
-  // Two URL schemes are supported:
+  // Three URL schemes are supported:
   //   "slug:<muscle>/<slug>"  → JahelCuadrado CDN (animated GIF, anatomical)
-  //   "<folder>"              → legacy free-exercise-db CDN (static JPG)
+  //   "wiki:<commons-path>"    → Wikimedia Commons (real-photo CC images,
+  //                              used for landmine variants JC doesn't ship)
+  //   "<folder>"               → legacy free-exercise-db CDN (static JPG)
   //
   // For the free-db folder case we use 1.jpg (end-of-motion frame) rather
   // than 0.jpg (start). The 1.jpg frame typically shows the muscle in its
@@ -4327,6 +4332,11 @@ function imageUrl(key) {
   if (key.startsWith('slug:')) {
     const gifUrl = SLUG_BASE + key.slice(5) + '.gif';
     return IMG_PROXY + encodeURIComponent(gifUrl) + IMG_PROXY_PARAMS;
+  }
+  if (key.startsWith('wiki:')) {
+    // commons path looks like "4/46/Landmine_Bent-Over_Rows.jpg"
+    const wikiUrl = 'upload.wikimedia.org/wikipedia/commons/' + key.slice(5);
+    return IMG_PROXY + encodeURIComponent(wikiUrl) + IMG_PROXY_PARAMS;
   }
   return IMG_BASE + encodeURIComponent(key) + '/1.jpg';
 }
@@ -4458,10 +4468,15 @@ function activateImagePlaceholders(rootEl, opts) {
 function exerciseImage(id) {
   const ex = EXERCISES.find(e => e.id === id);
   if (!ex) return exerciseSvg(id);
-  // Prefer the slug-based key (new dataset) if the exercise has one.
-  // The key string is passed verbatim to imageUrl() which knows how to
-  // split it. "slug:..." → JahelCuadrado CDN, otherwise folder → free-db.
-  const key = ex.slug ? 'slug:' + ex.slug : ex.image;
+  // Pick the best available image source for this exercise. Order:
+  //   1. ex.slug      → JahelCuadrado CDN (animated anatomical, preferred)
+  //   2. ex.wikiPath  → Wikimedia Commons (real photo, CC-licensed)
+  //   3. ex.image     → legacy free-exercise-db CDN (static JPG)
+  // The key string is passed verbatim to imageUrl() which knows the prefixes.
+  let key;
+  if (ex.slug)          key = 'slug:' + ex.slug;
+  else if (ex.wikiPath) key = 'wiki:' + ex.wikiPath;
+  else                  key = ex.image;
   // 1x1 transparent gif to suppress the broken-image icon before the real src is set
   const placeholderSrc = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
   return `<div class="img-holder" data-img-folder="${escapeHtml(key)}" style="width:100%; height:100%; position:relative;">
