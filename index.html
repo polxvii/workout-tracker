@@ -1672,6 +1672,71 @@ select {
 </div>
 
 <!-- EDIT MODAL -->
+<!-- Custom strength exercise modal — user-defined exercises that aren't in
+     the bundled dataset. Stored in state.customExercises (localStorage). -->
+<div id="customExModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1002; padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); max-width:480px; margin:40px auto; padding:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <div style="font-weight:600; font-size:16px;">Add custom exercise</div>
+      <button id="customExClose" type="button" style="background:transparent; border:none; color:var(--text-dim); font-size:24px; cursor:pointer; padding:4px 10px;">×</button>
+    </div>
+    <div class="form-group">
+      <label for="customExName">Name</label>
+      <input id="customExName" type="text" placeholder="e.g. Single-arm landmine row" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label for="customExBodyPart">Body part</label>
+      <select id="customExBodyPart"></select>
+    </div>
+    <div class="form-group">
+      <label for="customExType">Type</label>
+      <select id="customExType">
+        <option value="Bar">Bar</option>
+        <option value="Dumbbell">Dumbbell</option>
+        <option value="Cable">Cable</option>
+        <option value="Machine">Machine</option>
+        <option value="Smith">Smith</option>
+        <option value="Body Weight">Body Weight</option>
+      </select>
+    </div>
+    <div style="font-size:11px; color:var(--text-faint); margin:-4px 0 12px;">Saved on this device only — won't sync across phones yet.</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <button class="btn btn-secondary" id="customExCancelBtn" type="button">Cancel</button>
+      <button class="btn btn-primary" id="customExSaveBtn" type="button">✓ Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom cardio activity modal — same pattern but with a unit list. -->
+<div id="customCardioModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1002; padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); max-width:480px; margin:40px auto; padding:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <div style="font-weight:600; font-size:16px;">Add custom cardio activity</div>
+      <button id="customCardioClose" type="button" style="background:transparent; border:none; color:var(--text-dim); font-size:24px; cursor:pointer; padding:4px 10px;">×</button>
+    </div>
+    <div class="form-group">
+      <label for="customCardioName">Name</label>
+      <input id="customCardioName" type="text" placeholder="e.g. Pickleball" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label for="customCardioUnits">Tracking unit</label>
+      <select id="customCardioUnits">
+        <option value="min">Minutes (duration only)</option>
+        <option value="km">Distance (km)</option>
+        <option value="mi">Distance (mi)</option>
+        <option value="m">Distance (m)</option>
+        <option value="reps">Reps</option>
+        <option value="rounds">Rounds</option>
+      </select>
+    </div>
+    <div style="font-size:11px; color:var(--text-faint); margin:-4px 0 12px;">Saved on this device only — won't sync across phones yet.</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <button class="btn btn-secondary" id="customCardioCancelBtn" type="button">Cancel</button>
+      <button class="btn btn-primary" id="customCardioSaveBtn" type="button">✓ Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1001; padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch;">
   <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); max-width:600px; margin:20px auto; padding:16px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
@@ -4217,7 +4282,7 @@ function landmineSvg() {
 }
 
 function exerciseSvg(id) {
-  const ex = EXERCISES.find(e => e.id === id);
+  const ex = exerciseById(id);
   const colors = {
     'Chest':     { bg: '#1e3a5f', fg: '#60a5fa', skin: '#fbbf24' },
     'Back':      { bg: '#1f2937', fg: '#a78bfa', skin: '#fbbf24' },
@@ -4574,7 +4639,7 @@ function activateImagePlaceholders(rootEl, opts) {
 // Renders the placeholder markup. The actual <img src=…> stays empty;
 // loadPlaceholder() fills it in once the card is near the viewport.
 function exerciseImage(id) {
-  const ex = EXERCISES.find(e => e.id === id);
+  const ex = exerciseById(id);
   if (!ex) return exerciseSvg(id);
   // Landmine variants without a real-equipment image use the generic
   // landmine SVG. Shown as a static svg, no lazy loading needed.
@@ -4613,6 +4678,12 @@ async function clearImageCache() {
 const STORAGE_KEY = 'workout_tracker_v1';
 let state = {
   logs: [],
+  // User-defined exercises / cardio activities that aren't in the
+  // bundled dataset. Stored locally (localStorage); not yet synced to
+  // Supabase — that's a future improvement. Cross-device users will
+  // need to re-add them on each device for now.
+  customExercises: [],
+  customActivities: [],
   selectedExercise: null,
   currentView: 'strength',
   detailReturnView: 'strength',
@@ -4623,7 +4694,9 @@ function loadState() {
     const data = localStorage.getItem(STORAGE_KEY);
     if (data) {
       const parsed = JSON.parse(data);
-      if (Array.isArray(parsed.logs)) state.logs = parsed.logs;
+      if (Array.isArray(parsed.logs))             state.logs = parsed.logs;
+      if (Array.isArray(parsed.customExercises))  state.customExercises  = parsed.customExercises;
+      if (Array.isArray(parsed.customActivities)) state.customActivities = parsed.customActivities;
     }
   } catch (e) { console.warn('Could not load state', e); }
 }
@@ -4631,7 +4704,11 @@ function loadState() {
 // Local-only save (used by sync logic and clear-all)
 function saveStateLocal() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ logs: state.logs }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      logs: state.logs,
+      customExercises: state.customExercises,
+      customActivities: state.customActivities,
+    }));
   } catch (e) { showToast('Could not save data', 'error'); }
 }
 
@@ -5005,7 +5082,22 @@ function escapeHtml(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function exerciseById(id) { return EXERCISES.find(e => e.id === id); }
+// Lookup helpers — search the user's custom additions before the
+// bundled dataset so a custom exercise CAN shadow a built-in (e.g.
+// user makes their own "Bench Press" with extra notes).
+function exerciseById(id) {
+  for (const e of state.customExercises || []) if (e.id === id) return e;
+  return EXERCISES.find(e => e.id === id);
+}
+
+// Returns the merged list (built-in + custom) for any place that
+// renders a full grid or runs a filter. Returns EXERCISES itself when
+// there are no custom entries so we don't allocate a new array.
+function allExercises() {
+  return (state.customExercises && state.customExercises.length)
+    ? EXERCISES.concat(state.customExercises)
+    : EXERCISES;
+}
 
 // ============================================================
 // PERSONAL RECORD (PR)
@@ -5217,7 +5309,7 @@ function populateProgressExercises() {
   const bpSet = getChipMultiSelected('#progressBodyPart');
   const tpSet = getChipMultiSelected('#progressType');
 
-  const filtered = EXERCISES.filter(e =>
+  const filtered = allExercises().filter(e =>
     (bpSet.size === 0 || bpSet.has(e.bodyPart)) &&
     (tpSet.size === 0 || tpSet.has(e.type))
   ).sort((a, b) => a.name.localeCompare(b.name));
@@ -5294,7 +5386,7 @@ function renderExerciseGrid() {
   const tpSet = getChipMultiSelected('#filterType');
   const q = $('#searchExercise').value.trim().toLowerCase();
 
-  const filtered = EXERCISES.filter(e =>
+  const filtered = allExercises().filter(e =>
     (bpSet.size === 0 || bpSet.has(e.bodyPart)) &&
     (tpSet.size === 0 || tpSet.has(e.type)) &&
     (!q || e.name.toLowerCase().includes(q))
@@ -5303,10 +5395,24 @@ function renderExerciseGrid() {
   $('#logCount').textContent = '(' + filtered.length + ')';
 
   if (filtered.length === 0) {
-    grid.innerHTML = '<div class="empty" style="grid-column: 1/-1;"><div class="empty-title">No exercises match</div><div>Try clearing filters</div></div>';
+    grid.innerHTML = `
+      <div class="empty" style="grid-column: 1/-1;">
+        <div class="empty-title">No exercises match</div>
+        <div>Try clearing filters — or <button type="button" id="emptyAddCustomBtn" style="background:none;border:none;color:var(--primary);font:inherit;cursor:pointer;padding:0;text-decoration:underline;">add a custom one</button></div>
+      </div>`;
+    const ec = grid.querySelector('#emptyAddCustomBtn');
+    if (ec) ec.addEventListener('click', () => openCustomExerciseModal());
     return;
   }
 
+  // Trailing "+ Custom" tile lets the user add their own exercise when
+  // nothing in the dataset matches what they're doing.
+  const addTile = `
+    <div class="exercise-card add-custom-card" data-add-custom="exercise"
+         style="display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px; border:1px dashed var(--border); background:transparent; color:var(--text-dim);">
+      <div style="font-size:28px; line-height:1;">+</div>
+      <div style="font-size:12px; font-weight:600;">Add custom</div>
+    </div>`;
   grid.innerHTML = filtered.map(e => `
     <div class="exercise-card ${loggedIds.has(e.id) ? 'has-data' : ''}" data-id="${e.id}">
       <button class="exercise-info-btn" data-info="${e.id}" aria-label="Show details for ${escapeHtml(e.name)}" title="Show details">ⓘ</button>
@@ -5314,7 +5420,7 @@ function renderExerciseGrid() {
       <div class="exercise-name">${escapeHtml(e.name)}</div>
       <div class="exercise-meta">${escapeHtml(e.bodyPart)} · ${escapeHtml(e.type)}</div>
     </div>
-  `).join('');
+  `).join('') + addTile;
 
   // Info button: stop the click from bubbling to the card (which would select
   // the exercise). Just open the detail view; "Back" returns to Strength tab.
@@ -5324,6 +5430,7 @@ function renderExerciseGrid() {
       showDetail(btn.dataset.info, 'strength');
     });
   });
+  grid.querySelector('[data-add-custom="exercise"]').addEventListener('click', () => openCustomExerciseModal());
 
   grid.querySelectorAll('.exercise-card').forEach(card => {
     card.addEventListener('click', () => {
@@ -5649,6 +5756,81 @@ function closeEditModal() {
   document.body.style.overflow = '';
   editingLogId = null;
   editSets = [];
+}
+
+// ============================================================
+// CUSTOM EXERCISE / ACTIVITY MODALS
+// ============================================================
+// User-defined entries. IDs are prefixed with "custom-" so they can't
+// collide with bundled IDs (which use bb-/db-/cb-/mc-/sm-/bw-/etc).
+function openCustomExerciseModal() {
+  // Populate body part select fresh each time so it picks up any
+  // future additions to BODY_PARTS.
+  const sel = $('#customExBodyPart');
+  sel.innerHTML = BODY_PARTS.map(bp => `<option value="${bp}">${bp}</option>`).join('');
+  $('#customExName').value = '';
+  $('#customExType').value = 'Bar';
+  $('#customExModal').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => $('#customExName').focus(), 50);
+}
+function closeCustomExerciseModal() {
+  $('#customExModal').style.display = 'none';
+  document.body.style.overflow = '';
+}
+function saveCustomExercise() {
+  const name = $('#customExName').value.trim();
+  if (!name) { showToast('Name is required', 'error'); $('#customExName').focus(); return; }
+  const bodyPart = $('#customExBodyPart').value;
+  const type     = $('#customExType').value;
+  // ID generation: slugify name + timestamp suffix so the same name
+  // logged twice still produces unique IDs.
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'item';
+  const id = 'custom-' + slug + '-' + Date.now().toString(36);
+  state.customExercises.push({
+    id, name, bodyPart, type,
+    primaryMuscle: '', secondaryMuscles: [],
+    desc: 'Custom exercise.',
+    isCustom: true,
+  });
+  saveState();
+  closeCustomExerciseModal();
+  // Auto-select the freshly-added exercise so the user can immediately log
+  // their first set without an extra tap.
+  state.selectedExercise = id;
+  renderExerciseGrid();
+  renderSetsCard();
+  showToast('Added "' + name + '"');
+}
+
+function openCustomCardioModal() {
+  $('#customCardioName').value = '';
+  $('#customCardioUnits').value = 'min';
+  $('#customCardioModal').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => $('#customCardioName').focus(), 50);
+}
+function closeCustomCardioModal() {
+  $('#customCardioModal').style.display = 'none';
+  document.body.style.overflow = '';
+}
+function saveCustomCardio() {
+  const name = $('#customCardioName').value.trim();
+  if (!name) { showToast('Name is required', 'error'); $('#customCardioName').focus(); return; }
+  const primaryUnit = $('#customCardioUnits').value;
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'item';
+  const id = 'custom-' + slug + '-' + Date.now().toString(36);
+  state.customActivities.push({
+    id, name,
+    units: [primaryUnit, 'min'].filter((v, i, a) => a.indexOf(v) === i),
+    isCustom: true,
+  });
+  saveState();
+  closeCustomCardioModal();
+  selectedCardioActivity = id;
+  renderCardioActivityGrid();
+  populateCardioActivitySelects();
+  showToast('Added "' + name + '"');
 }
 
 function renderEditSets() {
@@ -6275,7 +6457,7 @@ function renderLibrary() {
   const tpSet = getChipMultiSelected('#libType');
   const q = $('#libSearch').value.trim().toLowerCase();
 
-  const filtered = EXERCISES.filter(e =>
+  const filtered = allExercises().filter(e =>
     (bpSet.size === 0 || bpSet.has(e.bodyPart)) &&
     (tpSet.size === 0 || tpSet.has(e.type)) &&
     (!q || e.name.toLowerCase().includes(q))
@@ -6731,7 +6913,16 @@ let cardioSubview = 'log';   // 'log' | 'history' | 'progress'
 // Defaults to 'week' since distance trends are most readable at weekly resolution.
 let cardioChartPeriod = 'week';
 
-function cardioActivityById(id) { return CARDIO_ACTIVITIES.find(a => a.id === id); }
+function cardioActivityById(id) {
+  for (const a of state.customActivities || []) if (a.id === id) return a;
+  return CARDIO_ACTIVITIES.find(a => a.id === id);
+}
+
+function allCardioActivities() {
+  return (state.customActivities && state.customActivities.length)
+    ? CARDIO_ACTIVITIES.concat(state.customActivities)
+    : CARDIO_ACTIVITIES;
+}
 
 // Realistic equipment/scene illustrations for each cardio activity. Pure inline
 // SVG — no network requests, no emoji, no people. Each picture shows the
@@ -7056,12 +7247,18 @@ function renderCardioActivityGrid() {
     // No selection — show the full grid
     if (label) label.textContent = 'Activity';
     if (changeBtn) changeBtn.style.display = 'none';
-    grid.innerHTML = CARDIO_ACTIVITIES.map(a => `
+    const addTile = `
+      <div class="exercise-card add-custom-card" data-add-custom="cardio"
+           style="display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px; border:1px dashed var(--border); background:transparent; color:var(--text-dim);">
+        <div style="font-size:28px; line-height:1;">+</div>
+        <div style="font-size:12px; font-weight:600;">Add custom</div>
+      </div>`;
+    grid.innerHTML = allCardioActivities().map(a => `
       <div class="exercise-card ${selectedCardioActivity === a.id ? 'selected' : ''}" data-activity="${a.id}">
         <div class="exercise-img">${cardioImage(a)}</div>
         <div class="exercise-name">${escapeHtml(a.name)}</div>
       </div>
-    `).join('');
+    `).join('') + addTile;
     grid.querySelectorAll('[data-activity]').forEach(card => {
       card.addEventListener('click', () => {
         selectedCardioActivity = card.dataset.activity;
@@ -7075,6 +7272,7 @@ function renderCardioActivityGrid() {
         setTimeout(() => $('#cardioInputs').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
       });
     });
+    grid.querySelector('[data-add-custom="cardio"]').addEventListener('click', () => openCustomCardioModal());
     activateImagePlaceholders(grid, { eager: true });
   } catch (err) {
     grid.innerHTML = '<div style="color:var(--danger); padding:12px; font-size:13px;">⚠️ Could not render activity grid: ' + escapeHtml(err.message || String(err)) + '</div>';
@@ -7717,7 +7915,7 @@ async function runOcrOnScreenshots(files) {
 function populateCardioActivitySelects() {
   // Activities the user has actually logged + canonical list
   const opts = '<option value="">All activities</option>' +
-    CARDIO_ACTIVITIES.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+    allCardioActivities().map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   ['#cardioHistoryActivity', '#cardioProgressActivity'].forEach(s => {
     const el = $(s);
     if (!el) return;
@@ -9144,7 +9342,7 @@ async function init() {
   // Defaults for progress (7 days)
   setProgressRange(7);
 
-  $('#libTotalCount').textContent = EXERCISES.length;
+  $('#libTotalCount').textContent = allExercises().length;
 
   populateBodyPartSelects();
   populateTypeSelects();
@@ -9486,6 +9684,18 @@ async function init() {
   $('#editCancel').addEventListener('click', closeEditModal);
   $('#editCancelBtn').addEventListener('click', closeEditModal);
   $('#editSaveBtn').addEventListener('click', saveEdit);
+
+  // Custom exercise modal wiring
+  $('#customExClose')    .addEventListener('click', closeCustomExerciseModal);
+  $('#customExCancelBtn').addEventListener('click', closeCustomExerciseModal);
+  $('#customExSaveBtn')  .addEventListener('click', saveCustomExercise);
+  $('#customExModal')    .addEventListener('click', e => { if (e.target.id === 'customExModal') closeCustomExerciseModal(); });
+
+  // Custom cardio modal wiring
+  $('#customCardioClose')    .addEventListener('click', closeCustomCardioModal);
+  $('#customCardioCancelBtn').addEventListener('click', closeCustomCardioModal);
+  $('#customCardioSaveBtn')  .addEventListener('click', saveCustomCardio);
+  $('#customCardioModal')    .addEventListener('click', e => { if (e.target.id === 'customCardioModal') closeCustomCardioModal(); });
   $('#editAddSetBtn').addEventListener('click', () => {
     // Default reps + weight from the last set (same UX as the main log's
     // Add Set button) so "3 sets of 10 @ 60kg" only needs one entry.
