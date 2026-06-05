@@ -4312,6 +4312,55 @@ const EXERCISES = [
   },
 
   // ============================================================
+  // POPULAR EXERCISES — added in batch after gap analysis (all slugs verified 200)
+  // ============================================================
+
+  // Arms — Biceps
+  { id: 'cb-seated-curl',          name: 'Seated Cable Curl',             bodyPart: 'Arms', type: 'Cable',     primaryMuscle: 'Biceps',              secondaryMuscles: [],                   slug: 'biceps/cable-seated-curl',                  desc: 'Seated position removes cheating — strict bicep isolation.' },
+  { id: 'db-seated-curl',          name: 'Seated Dumbbell Curl',          bodyPart: 'Arms', type: 'Dumbbell',  primaryMuscle: 'Biceps',              secondaryMuscles: [],                   slug: 'biceps/dumbbell-seated-curl',               desc: 'Seated to prevent body sway — great for strict form.' },
+  { id: 'db-seated-bicep-curl',    name: 'Seated Dumbbell Biceps Curl',   bodyPart: 'Arms', type: 'Dumbbell',  primaryMuscle: 'Biceps',              secondaryMuscles: [],                   slug: 'biceps/dumbbell-seated-bicep-curl',         desc: 'Classic seated curl with neutral posture.' },
+  { id: 'db-seated-hammer-curl',   name: 'Seated Hammer Curl',            bodyPart: 'Arms', type: 'Dumbbell',  primaryMuscle: 'Brachialis',          secondaryMuscles: ['Biceps', 'Forearms'], slug: 'biceps/dumbbell-seated-hammer-curl',       desc: 'Neutral-grip curl seated — targets brachialis and brachioradialis.' },
+  { id: 'db-cross-body-hammer',    name: 'Cross-Body Hammer Curl',        bodyPart: 'Arms', type: 'Dumbbell',  primaryMuscle: 'Brachialis',          secondaryMuscles: ['Biceps'],           slug: 'biceps/dumbbell-cross-body-hammer-curl',    desc: 'Curl across the body to the opposite shoulder — peak brachialis contraction.' },
+  { id: 'db-zottman-curl',         name: 'Zottman Curl',                  bodyPart: 'Arms', type: 'Dumbbell',  primaryMuscle: 'Biceps',              secondaryMuscles: ['Brachialis', 'Forearms'], slug: 'biceps/dumbbell-zottman-curl',          desc: 'Supinated on the way up, pronated on the way down — works all three elbow flexors.' },
+
+  // Arms — Triceps
+  { id: 'cb-kneeling-tri-ext',     name: 'Kneeling Cable Triceps Extension', bodyPart: 'Arms', type: 'Cable', primaryMuscle: 'Triceps',             secondaryMuscles: [],                   slug: 'triceps/cable-kneeling-triceps-extension',  desc: 'Kneeling keeps the core stable and isolates the long head.' },
+  { id: 'cb-v-bar-pushdown',       name: 'Cable V-Bar Pushdown',          bodyPart: 'Arms', type: 'Cable',     primaryMuscle: 'Triceps',             secondaryMuscles: [],                   slug: 'triceps/cable-triceps-pushdown-v-bar',      desc: 'V-bar handle supinates the wrists slightly for a strong lateral head squeeze.' },
+  { id: 'cb-reverse-pushdown',     name: 'Cable Reverse-Grip Pushdown',   bodyPart: 'Arms', type: 'Cable',     primaryMuscle: 'Triceps (lateral)',   secondaryMuscles: ['Forearms'],         slug: 'triceps/cable-reverse-grip-pushdown',       desc: 'Underhand grip shifts emphasis to the long head and works forearm extensors.' },
+
+  // Shoulders
+  { id: 'db-seated-press',         name: 'Seated Dumbbell Press',         bodyPart: 'Shoulders', type: 'Dumbbell', primaryMuscle: 'Shoulders (front)', secondaryMuscles: ['Triceps', 'Shoulders (side)'], slug: 'delts/dumbbell-seated-shoulder-press', desc: 'Seated for stability — lets you focus purely on deltoid drive.' },
+  { id: 'db-standing-ohp',         name: 'Standing Dumbbell Press',       bodyPart: 'Shoulders', type: 'Dumbbell', primaryMuscle: 'Shoulders (front)', secondaryMuscles: ['Triceps', 'Core'], slug: 'delts/dumbbell-standing-overhead-press', desc: 'Standing recruits core and produces more total-body tension than seated.' },
+  { id: 'db-push-press',           name: 'Dumbbell Push Press',           bodyPart: 'Shoulders', type: 'Dumbbell', primaryMuscle: 'Shoulders (front)', secondaryMuscles: ['Triceps', 'Legs'], slug: 'delts/dumbbell-push-press',             desc: 'Leg drive helps move heavier weight overhead — builds power and shoulder mass.' },
+  { id: 'db-seated-lateral',       name: 'Seated Lateral Raise',          bodyPart: 'Shoulders', type: 'Dumbbell', primaryMuscle: 'Shoulders (side)', secondaryMuscles: [],                  slug: 'delts/dumbbell-seated-lateral-raise',   desc: 'Seated reduces cheating — strict lateral delt isolation.' },
+  { id: 'db-seated-front-raise',   name: 'Seated Front Raise',            bodyPart: 'Shoulders', type: 'Dumbbell', primaryMuscle: 'Shoulders (front)', secondaryMuscles: [],                 slug: 'delts/dumbbell-seated-front-raise',     desc: 'Seated to limit body sway — isolates anterior deltoid.' },
+  { id: 'db-rear-fly',             name: 'Dumbbell Rear Fly',             bodyPart: 'Shoulders', type: 'Dumbbell', primaryMuscle: 'Rear Delts',       secondaryMuscles: ['Upper Back'],       slug: 'delts/dumbbell-rear-fly',               desc: 'Hinge at hips, arms out — key posterior delt developer.' },
+  { id: 'db-rear-delt-raise',      name: 'Dumbbell Rear Delt Raise',      bodyPart: 'Shoulders', type: 'Dumbbell', primaryMuscle: 'Rear Delts',       secondaryMuscles: [],                   slug: 'delts/dumbbell-rear-delt-raise',        desc: 'Similar to rear fly — strict raise pattern for posterior delt.' },
+  { id: 'cb-seated-rear-lateral',  name: 'Seated Cable Rear Lateral Raise', bodyPart: 'Shoulders', type: 'Cable', primaryMuscle: 'Rear Delts',       secondaryMuscles: ['Upper Back'],       slug: 'delts/cable-seated-rear-lateral-raise', desc: 'Seated cable rear delt raise — constant tension through full range.' },
+  { id: 'bb-rear-delt-raise',      name: 'Barbell Rear Delt Raise',       bodyPart: 'Shoulders', type: 'Bar',      primaryMuscle: 'Rear Delts',       secondaryMuscles: ['Upper Back'],       slug: 'delts/barbell-rear-delt-raise',         desc: 'Bent-over barbell raise — loads the rear delts bilaterally.' },
+  { id: 'bb-wide-military-press',  name: 'Barbell Wide Military Press',   bodyPart: 'Shoulders', type: 'Bar',      primaryMuscle: 'Shoulders (side)', secondaryMuscles: ['Triceps', 'Shoulders (front)'], slug: 'delts/barbell-standing-wide-military-press', desc: 'Wide grip shifts emphasis to lateral delts.' },
+  { id: 'sm-seated-press',         name: 'Smith Seated Shoulder Press',   bodyPart: 'Shoulders', type: 'Smith',    primaryMuscle: 'Shoulders (front)', secondaryMuscles: ['Triceps'],         slug: 'delts/smith-seated-shoulder-press',     desc: 'Smith machine stabilises the bar so you can focus on deltoid drive.' },
+
+  // Core
+  { id: 'cb-standing-crunch',      name: 'Cable Standing Crunch',        bodyPart: 'Core',  type: 'Cable',     primaryMuscle: 'Rectus Abdominis',    secondaryMuscles: [],                   slug: 'abs/cable-standing-crunch',             desc: 'Stand, pull the rope down and crunch — rectus abdominis with constant tension.' },
+  { id: 'cb-wood-chop',            name: 'Cable Wood Chop',              bodyPart: 'Core',  type: 'Cable',     primaryMuscle: 'Obliques',            secondaryMuscles: ['Transverse Abs'],   slug: 'abs/cable-standing-lift',               desc: 'Diagonal pull from low to high — rotational core power.' },
+
+  // Hips / Glutes
+  { id: 'bb-hack-squat',           name: 'Barbell Hack Squat',           bodyPart: 'Hips',  type: 'Bar',       primaryMuscle: 'Quads',               secondaryMuscles: ['Glutes'],           slug: 'glutes/barbell-hack-squat',             desc: 'Bar held behind the body — quad-dominant squat variation.' },
+  { id: 'bb-high-bar-squat',       name: 'High-Bar Squat (Barbell)',     bodyPart: 'Hips',  type: 'Bar',       primaryMuscle: 'Quads',               secondaryMuscles: ['Glutes', 'Hamstrings'], slug: 'glutes/barbell-high-bar-squat',      desc: 'Bar rests on upper traps — more upright torso, more quad.' },
+  { id: 'bb-low-bar-squat',        name: 'Low-Bar Squat (Barbell)',      bodyPart: 'Hips',  type: 'Bar',       primaryMuscle: 'Glutes',              secondaryMuscles: ['Quads', 'Hamstrings'], slug: 'glutes/barbell-low-bar-squat',       desc: 'Bar low on rear delt shelf — more hip hinge, more glute/posterior.' },
+  { id: 'bb-lateral-lunge',        name: 'Lateral Lunge (Barbell)',      bodyPart: 'Hips',  type: 'Bar',       primaryMuscle: 'Glutes',              secondaryMuscles: ['Adductors', 'Quads'], slug: 'glutes/barbell-lateral-lunge',        desc: 'Step wide to the side, sit into one hip — trains frontal plane.' },
+  { id: 'bb-step-up',              name: 'Step-Up (Barbell)',            bodyPart: 'Hips',  type: 'Bar',       primaryMuscle: 'Glutes',              secondaryMuscles: ['Quads'],            slug: 'glutes/barbell-step-up',                desc: 'Drive through the heel on the box — single-leg glute and quad builder.' },
+  { id: 'db-squat',                name: 'Dumbbell Squat',               bodyPart: 'Hips',  type: 'Dumbbell',  primaryMuscle: 'Quads',               secondaryMuscles: ['Glutes'],           slug: 'glutes/dumbbell-squat',                 desc: 'Simple dumbbell squat — great beginner-friendly quad and glute movement.' },
+  { id: 'cb-hip-extension',        name: 'Cable Hip Extension',          bodyPart: 'Hips',  type: 'Cable',     primaryMuscle: 'Glutes',              secondaryMuscles: ['Hamstrings'],       slug: 'glutes/cable-standing-hip-extension',   desc: 'Ankle attachment, extend leg behind — targeted glute isolation.' },
+  { id: 'sm-full-squat',           name: 'Smith Machine Squat',          bodyPart: 'Hips',  type: 'Smith',     primaryMuscle: 'Quads',               secondaryMuscles: ['Glutes', 'Hamstrings'], slug: 'glutes/smith-full-squat',            desc: 'Smith squats let beginners focus on depth and form without balance challenge.' },
+
+  // Legs — Calves
+  { id: 'bb-seated-calf-raise',    name: 'Seated Calf Raise (Barbell)',  bodyPart: 'Legs',  type: 'Bar',       primaryMuscle: 'Soleus',              secondaryMuscles: [],                   slug: 'calves/barbell-seated-calf-raise',       desc: 'Bent-knee position targets the soleus (deeper calf) more than standing.' },
+  { id: 'mc-donkey-calf-raise',    name: 'Donkey Calf Raise (Machine)',  bodyPart: 'Legs',  type: 'Machine',   primaryMuscle: 'Gastrocnemius',       secondaryMuscles: [],                   slug: 'calves/lever-donkey-calf-raise',         desc: 'Bent-over position for a bigger stretch — classic gastrocnemius builder.' },
+  { id: 'sm-standing-calf-raise',  name: 'Standing Calf Raise (Smith)',  bodyPart: 'Legs',  type: 'Smith',     primaryMuscle: 'Gastrocnemius',       secondaryMuscles: ['Soleus'],           slug: 'calves/smith-standing-leg-calf-raise',   desc: 'Smith bar for balance — load calf through full range of motion.' },
+
+  // ============================================================
   // LANDMINE FAMILY — JC doesn't ship dedicated landmine GIFs for most
   // variants, so each entry uses the closest anatomical match (same
   // movement pattern, same target muscles). User accepted this trade
