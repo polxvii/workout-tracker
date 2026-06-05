@@ -899,14 +899,28 @@ select {
   gap: 8px;
   margin-bottom: 12px;
 }
-.search-input { margin-bottom: 12px; }
-/* Show the native ✕ clear button on all browsers that support type=search */
-.search-input::-webkit-search-cancel-button {
-  -webkit-appearance: searchfield-cancel-button;
-  appearance: auto;
-  cursor: pointer;
+.search-wrap {
+  position: relative;
+  display: block;
 }
-.search-input::-webkit-search-results-button { display: none; }
+.search-wrap .search-input { margin: 0; width: 100%; box-sizing: border-box; padding-right: 32px; }
+.search-input { margin-bottom: 12px; }
+.search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  display: none;
+  touch-action: manipulation;
+}
+.search-clear:hover { color: var(--text); }
 
 /* Toast */
 .toast {
@@ -1323,7 +1337,10 @@ select {
         <label>Filter exercises</label>
         <div id="filterBodyPart"></div>
         <div id="filterType"></div>
-        <input type="search" id="searchExercise" class="search-input" placeholder="Search by name…" style="margin-top:10px;">
+        <div class="search-wrap" style="margin-top:10px;">
+          <input type="search" id="searchExercise" class="search-input" placeholder="Search by name…" autocomplete="off">
+          <button type="button" class="search-clear" id="searchExerciseClear" tabindex="-1">✕</button>
+        </div>
       </div>
 
       <div class="form-group">
@@ -1496,7 +1513,10 @@ select {
             <label id="cardioActivityLabel">Activity</label>
             <button type="button" id="cardioChangeActivityBtn" style="display:none; background:transparent; border:none; color:var(--primary); font-size:13px; cursor:pointer; font-family:inherit; padding:0;">Change</button>
           </div>
-          <input type="search" id="cardioSearch" class="search-input" placeholder="Search activity…" style="margin-bottom:8px;">
+          <div class="search-wrap" style="margin-bottom:8px;">
+            <input type="search" id="cardioSearch" class="search-input" placeholder="Search activity…" autocomplete="off">
+            <button type="button" class="search-clear" id="cardioSearchClear" tabindex="-1">✕</button>
+          </div>
           <div class="exercise-grid" id="cardioActivityGrid" style="grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));"></div>
         </div>
 
@@ -1725,7 +1745,10 @@ select {
         <div class="card-title">Exercise library (<span id="libTotalCount">0</span> exercises)</div>
         <div id="libBodyPart"></div>
         <div id="libType"></div>
-        <input type="search" id="libSearch" class="search-input" style="margin-top:10px;" placeholder="Search by name…">
+        <div class="search-wrap" style="margin-top:10px;">
+          <input type="search" id="libSearch" class="search-input" placeholder="Search by name…" autocomplete="off">
+          <button type="button" class="search-clear" id="libSearchClear" tabindex="-1">✕</button>
+        </div>
         <div class="exercise-grid" id="libGrid" style="margin-top: 12px;"></div>
       </div>
     </div>
@@ -5798,19 +5821,18 @@ function renderExerciseGrid() {
     card.addEventListener('click', () => {
       const id = card.dataset.id;
       state.selectedExercise = id;
+      isNewSession = false;  // fresh selection → reset override
 
-      // Check if this exercise was already logged today — offer to continue
+      // Check if this exercise was already logged today — load previous sets to continue
       const today = $('#logDate').value || todayISO();
       const todayLogs = state.logs.filter(l => l.exerciseId === id && l.date === today);
       if (todayLogs.length > 0) {
         const lastLog = todayLogs[todayLogs.length - 1];
-        // Load last session's sets as a starting point
         currentSets = lastLog.sets.map(s => ({
           reps:   String(s.reps   || ''),
           weight: String(s.weight ?? ''),
           note:   s.note || '',
         }));
-        // Add an empty row ready for the next set
         currentSets.push({ reps: '', weight: '', note: '' });
       } else {
         currentSets = [{ reps: '', weight: '', note: '' }];
@@ -5828,7 +5850,8 @@ function renderExerciseGrid() {
   activateImagePlaceholders(grid);
 }
 
-let currentSets = [{ reps: '', weight: '', note: '' }];
+let currentSets   = [{ reps: '', weight: '', note: '' }];
+let isNewSession  = false;  // true after user taps "New session" — suppresses "continuing" badge
 
 function renderSetsCard() {
   const card = $('#setsCard');
@@ -5841,13 +5864,15 @@ function renderSetsCard() {
   const prBadge = pr
     ? ` <span style="font-size:12px; font-weight:500; color:var(--text-dim); margin-left:6px;">· PR ${pr.weight}</span>`
     : '';
-  // Check if we're continuing from an existing log today
+  // Show "↩ continuing" + "New session" only when we loaded sets from today's log
+  // AND the user hasn't explicitly started a new session yet.
   const today2 = $('#logDate').value || todayISO();
   const todayLogCount = state.logs.filter(l => l.exerciseId === ex.id && l.date === today2).length;
-  const continueBadge = todayLogCount > 0
+  const showContinue = todayLogCount > 0 && !isNewSession;
+  const continueBadge = showContinue
     ? ` <span style="font-size:11px; color:var(--primary); margin-left:6px;">↩ continuing</span>`
     : '';
-  const newSessionBtn = todayLogCount > 0
+  const newSessionBtn = showContinue
     ? ` <button type="button" id="newSessionBtn" style="font-size:11px; background:none; border:none; color:var(--text-faint); cursor:pointer; font-family:inherit; margin-left:8px; text-decoration:underline;">New session</button>`
     : '';
   $('#setsCardTitle').innerHTML = escapeHtml(ex.name) + ' — sets' + prBadge + continueBadge + newSessionBtn;
@@ -5855,6 +5880,7 @@ function renderSetsCard() {
   if (nsBtn) {
     nsBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      isNewSession = true;
       currentSets = [{ reps: '', weight: '', note: '' }];
       renderSetsCard();
     });
@@ -10103,6 +10129,19 @@ async function init() {
   // Log filters — chip-multi widgets wire their own onChange in
   // populateBodyPartSelects / populateTypeSelects; only the search box
   // still needs an input listener.
+  // Wire search inputs with ✕ clear button (cross-browser — not relying on webkit pseudo-element)
+  function wireSearchClear(inputId, clearId, onClear) {
+    const inp = $('#' + inputId), btn = $('#' + clearId);
+    if (!inp || !btn) return;
+    const update = () => { btn.style.display = inp.value ? 'block' : 'none'; };
+    inp.addEventListener('input', update);
+    btn.addEventListener('click', () => { inp.value = ''; btn.style.display = 'none'; onClear(); inp.focus(); });
+    update();
+  }
+  wireSearchClear('searchExercise', 'searchExerciseClear', renderExerciseGrid);
+  wireSearchClear('cardioSearch',   'cardioSearchClear',   renderCardioActivityGrid);
+  wireSearchClear('libSearch',      'libSearchClear',      renderLibrary);
+
   $('#searchExercise').addEventListener('input', renderExerciseGrid);
 
   // "Change exercise" — clear selection and bring back the grid
