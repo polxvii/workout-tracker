@@ -234,6 +234,10 @@ body { padding-bottom: 80px; }
   transition: all 0.15s;
   font-family: inherit;
   white-space: nowrap;
+  /* iOS Safari double-taps zoom by default — that's why a quick
+     double-tap on Settings was triggering a horizontal shift. manipulation
+     disables the zoom gesture but keeps single-tap responsive. */
+  touch-action: manipulation;
 }
 .tab.active {
   color: var(--primary);
@@ -910,7 +914,7 @@ select {
      AUTH SCREEN — shown while user is not logged in. Covers the
      entire app. Hidden once Supabase reports an active session.
      ============================================================ -->
-<div id="authScreen" style="position:fixed; inset:0; z-index:9999; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:20px;">
+<div id="authScreen" style="position:fixed; inset:0; z-index:9999; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:20px; overflow-y:auto; -webkit-overflow-scrolling:touch;">
   <div style="width:100%; max-width:380px;">
     <div style="text-align:center; margin-bottom:24px;">
       <div style="font-size:48px;">💪</div>
@@ -944,7 +948,7 @@ select {
                style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0; pointer-events:none;">
 
         <label for="authRemember"
-               style="display:flex; align-items:center; gap:12px; margin:0 0 14px 0; padding:10px 12px; font-size:14px; color:var(--text); cursor:pointer; user-select:none; background:var(--surface-2); border:1px solid var(--border); border-radius:8px;">
+               style="display:flex; align-items:center; gap:12px; margin:0 0 14px 0; padding:12px 14px; font-size:14px; color:var(--text); cursor:pointer; user-select:none; background:var(--surface-2); border:2px solid var(--accent); border-radius:8px;">
           <span id="authRememberBox" aria-hidden="true"
                 style="display:inline-flex; align-items:center; justify-content:center;
                        width:26px; height:26px; min-width:26px;
@@ -952,7 +956,7 @@ select {
                        background:transparent; flex-shrink:0;
                        transition:background 0.15s;">
             <svg viewBox="0 0 24 24" width="18" height="18" id="authRememberCheck" style="display:none;">
-              <path d="M5 12l5 5L20 7" fill="none" stroke="#000" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M5 12l5 5L20 7" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </span>
           <span>Keep me signed in on this device</span>
@@ -2247,6 +2251,26 @@ const EXERCISES = [
     secondaryMuscles: ['Rear Delts', 'Biceps'],
     slug: 'upper-back/cable-rope-seated-row',
     desc: 'Rope allows hands to split at peak contraction for maximum scapular squeeze.',
+  },
+  {
+    id: 'cb-standing-row-rope',
+    name: 'Standing Cable Row (Rope)',
+    bodyPart: 'Back',
+    type: 'Cable',
+    primaryMuscle: 'Upper Back',
+    secondaryMuscles: ['Lats', 'Rear Delts', 'Biceps'],
+    slug: 'upper-back/cable-standing-row-v-bar',
+    desc: 'Standing, hinge slightly, row rope to lower chest. Stable core, full scapular retraction.',
+  },
+  {
+    id: 'cb-face-pull',
+    name: 'Face Pull (Cable)',
+    bodyPart: 'Back',
+    type: 'Cable',
+    primaryMuscle: 'Rear Delts',
+    secondaryMuscles: ['Upper Back', 'Rotator Cuff'],
+    slug: 'delts/cable-standing-rear-delt-row-with-rope',
+    desc: 'Cable at face height, pull rope to forehead with elbows high — postural + shoulder health staple.',
   },
   {
     id: 'cb-straight-arm-pulldown',
@@ -3568,6 +3592,16 @@ const EXERCISES = [
     slug: 'quads/lever-alternate-leg-press',
     desc: 'Single-leg press alternating sides — corrects asymmetry and improves unilateral strength.',
   },
+  {
+    id: 'mc-leg-press-90',
+    name: 'Seated Leg Press 90° (Machine)',
+    bodyPart: 'Legs',
+    type: 'Machine',
+    primaryMuscle: 'Quads',
+    secondaryMuscles: ['Glutes', 'Hamstrings'],
+    slug: 'glutes/lever-horizontal-one-leg-press',
+    desc: '90° upright/seated press — back upright, press platform forward. More quad-dominant than 45° sled.',
+  },
 
   // Smith
   {
@@ -3699,10 +3733,10 @@ const EXERCISES = [
   {
     id: 'bb-romanian-deadlift',
     name: 'Romanian Deadlift (Barbell)',
-    bodyPart: 'Hips',
+    bodyPart: 'Back',
     type: 'Bar',
-    primaryMuscle: 'Glutes',
-    secondaryMuscles: ['Hamstrings', 'Lower Back'],
+    primaryMuscle: 'Lower Back / Erectors',
+    secondaryMuscles: ['Hamstrings', 'Glutes'],
     slug: 'glutes/barbell-romanian-deadlift',
     desc: 'Push hips back, bar stays close to legs, feel glute-ham stretch, drive hips forward.',
   },
@@ -3731,10 +3765,10 @@ const EXERCISES = [
   {
     id: 'db-romanian-deadlift',
     name: 'Romanian Deadlift (Dumbbell)',
-    bodyPart: 'Hips',
+    bodyPart: 'Back',
     type: 'Dumbbell',
-    primaryMuscle: 'Glutes',
-    secondaryMuscles: ['Hamstrings', 'Lower Back'],
+    primaryMuscle: 'Lower Back / Erectors',
+    secondaryMuscles: ['Hamstrings', 'Glutes'],
     slug: 'glutes/dumbbell-romanian-deadlift',
     desc: 'Hip hinge with dumbbells, feel glute-hamstring stretch, drive hips through.',
   },
@@ -3925,6 +3959,143 @@ const EXERCISES = [
     secondaryMuscles: ['Core'],
     slug: 'adductors/side-plank-hip-adduction',
     desc: 'Side plank, lower hip to tap floor then raise — adductors and core together.',
+  },
+
+  // ============================================================
+  // LANDMINE FAMILY — JC doesn't ship dedicated landmine GIFs for most
+  // variants, so each entry uses the closest anatomical match (same
+  // movement pattern, same target muscles). User accepted this trade
+  // for v1.08. Equipment is the standard barbell with one end pinned.
+  // ============================================================
+  {
+    id: 'bb-landmine-row',
+    name: 'Landmine Row',
+    bodyPart: 'Back',
+    type: 'Bar',
+    primaryMuscle: 'Upper Back',
+    secondaryMuscles: ['Lats', 'Biceps', 'Rear Delts'],
+    slug: 'upper-back/barbell-one-arm-bent-over-row',
+    desc: 'Single-arm row with landmine bar, hinge over, drive elbow back. Brace core hard.',
+  },
+  {
+    id: 'bb-landmine-meadows-row',
+    name: 'Meadows Row (Landmine)',
+    bodyPart: 'Back',
+    type: 'Bar',
+    primaryMuscle: 'Lats',
+    secondaryMuscles: ['Upper Back', 'Biceps'],
+    slug: 'upper-back/dumbbell-one-arm-bent-over-row',
+    desc: 'Staggered stance, single-arm landmine row at angle — heavy lat focus with stable trunk.',
+  },
+  {
+    id: 'bb-landmine-tbar-row',
+    name: 'Landmine T-Bar Row',
+    bodyPart: 'Back',
+    type: 'Bar',
+    primaryMuscle: 'Upper Back',
+    secondaryMuscles: ['Lats', 'Biceps'],
+    slug: 'upper-back/lever-t-bar-row',
+    desc: 'Landmine + V-handle clipped under, row to chest. Heavy compound back builder.',
+  },
+  {
+    id: 'bb-landmine-press-chest',
+    name: 'Landmine Press (Chest)',
+    bodyPart: 'Chest',
+    type: 'Bar',
+    primaryMuscle: 'Chest (upper)',
+    secondaryMuscles: ['Shoulders (front)', 'Triceps'],
+    slug: 'pectorals/dumbbell-incline-one-arm-press',
+    desc: 'Single-arm landmine press at upward angle — hits upper chest while sparing the shoulder joint.',
+  },
+  {
+    id: 'bb-landmine-press-shoulder',
+    name: 'Landmine Press (Shoulder)',
+    bodyPart: 'Shoulders',
+    type: 'Bar',
+    primaryMuscle: 'Shoulders (front)',
+    secondaryMuscles: ['Triceps', 'Chest (upper)'],
+    slug: 'delts/dumbbell-one-arm-shoulder-press',
+    desc: 'Landmine press from shoulder height — natural arc, shoulder-friendly overhead variation.',
+  },
+  {
+    id: 'bb-landmine-arnold-press',
+    name: 'Landmine Arnold Press',
+    bodyPart: 'Shoulders',
+    type: 'Bar',
+    primaryMuscle: 'Shoulders (front)',
+    secondaryMuscles: ['Shoulders (side)', 'Triceps'],
+    slug: 'delts/dumbbell-arnold-press',
+    desc: 'Press with rotation through the lift — anterior + lateral delt sweep in one rep.',
+  },
+  {
+    id: 'bb-landmine-pallof-press',
+    name: 'Landmine Pallof Press',
+    bodyPart: 'Core',
+    type: 'Bar',
+    primaryMuscle: 'Obliques',
+    secondaryMuscles: ['Transverse Abs', 'Lower Back'],
+    slug: 'abs/cable-twist',
+    desc: 'Hold bar at chest centerline, press out, resist rotation. Anti-rotation core staple.',
+  },
+  {
+    id: 'bb-landmine-squat',
+    name: 'Landmine Squat',
+    bodyPart: 'Hips',
+    type: 'Bar',
+    primaryMuscle: 'Quads',
+    secondaryMuscles: ['Glutes', 'Core'],
+    slug: 'glutes/barbell-front-squat',
+    desc: 'Hold bar end at chest, squat down. Upright torso, knees track over toes.',
+  },
+  {
+    id: 'bb-landmine-rdl',
+    name: 'Landmine RDL',
+    bodyPart: 'Hips',
+    type: 'Bar',
+    primaryMuscle: 'Hamstrings',
+    secondaryMuscles: ['Glutes', 'Lower Back'],
+    slug: 'glutes/barbell-romanian-deadlift',
+    desc: 'Landmine RDL — single arm or two-hand, hinge back, control the descent.',
+  },
+  {
+    id: 'bb-landmine-hip-thrust',
+    name: 'Landmine Hip Thrust',
+    bodyPart: 'Hips',
+    type: 'Bar',
+    primaryMuscle: 'Glutes',
+    secondaryMuscles: ['Hamstrings'],
+    slug: 'glutes/barbell-glute-bridge',
+    desc: 'Bar end on hips, drive hips up forcefully, full glute lockout at top.',
+  },
+  {
+    id: 'bb-landmine-reverse-lunge',
+    name: 'Landmine Reverse Lunge',
+    bodyPart: 'Hips',
+    type: 'Bar',
+    primaryMuscle: 'Glutes',
+    secondaryMuscles: ['Quads', 'Hamstrings'],
+    slug: 'glutes/barbell-rear-lunge',
+    desc: 'Hold bar at shoulder, step back into lunge, drive front heel through to return.',
+  },
+  {
+    id: 'bb-landmine-curl',
+    name: 'Landmine Curl',
+    bodyPart: 'Arms',
+    type: 'Bar',
+    primaryMuscle: 'Biceps',
+    secondaryMuscles: ['Forearms'],
+    slug: 'biceps/barbell-curl',
+    desc: 'Curl the landmine bar — fixed arc spares the elbow and overloads the bicep stretch.',
+  },
+  {
+    id: 'bb-landmine-tricep-ext',
+    name: 'Landmine Tricep Extension',
+    bodyPart: 'Arms',
+    type: 'Bar',
+    primaryMuscle: 'Triceps',
+    secondaryMuscles: ['Shoulders (front)'],
+    slug: 'triceps/barbell-standing-overhead-triceps-extension',
+    desc: 'Stand facing the landmine, extend bar overhead. Lockout at top, lower behind head.',
   },
 
 ];
@@ -8274,6 +8445,7 @@ async function onSessionEstablished(session) {
   // to Supabase, which on a cold connection or large account can take
   // several seconds. The sync banner at the top communicates progress.
   $('#authScreen').style.display = 'none';
+  document.body.style.overflow = '';  // restore body scroll after login
   // Reset the login button so a future logout/login cycle starts clean.
   const btn = $('#authSubmitBtn');
   if (btn) {
@@ -8371,6 +8543,7 @@ async function handleLogout() {
     $('#authPassword').value = '';
     setAuthMode('login');
     $('#authScreen').style.display = 'flex';
+    document.body.style.overflow = 'hidden';  // prevent body scroll showing through auth screen
     refreshAllViews();
   } catch (e) {
     showToast('Logout failed: ' + (e.message || e), 'error');
@@ -8481,6 +8654,7 @@ async function initSupabase() {
   } else {
     // No session — keep auth screen visible.
     $('#authScreen').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
   }
 }
 
@@ -8939,7 +9113,14 @@ async function init() {
   $('#editCancelBtn').addEventListener('click', closeEditModal);
   $('#editSaveBtn').addEventListener('click', saveEdit);
   $('#editAddSetBtn').addEventListener('click', () => {
-    editSets.push({ reps: '', weight: '', note: '' });
+    // Default reps + weight from the last set (same UX as the main log's
+    // Add Set button) so "3 sets of 10 @ 60kg" only needs one entry.
+    const last = editSets.length > 0 ? editSets[editSets.length - 1] : null;
+    editSets.push({
+      reps:   last && last.reps   !== '' ? last.reps   : '',
+      weight: last && last.weight !== '' ? last.weight : '',
+      note: '',
+    });
     renderEditSets();
   });
   // Close on backdrop click
