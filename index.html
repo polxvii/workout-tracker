@@ -5870,13 +5870,15 @@ function renderExerciseGrid() {
     card.addEventListener('click', () => {
       const id = card.dataset.id;
       state.selectedExercise = id;
-      isNewSession = false;  // fresh selection → reset override
+      isNewSession    = false;   // fresh selection → reset override
+      continuingLogId = null;    // will be set below if continuing
 
       // Check if this exercise was already logged today — load previous sets to continue
       const today = $('#logDate').value || todayISO();
       const todayLogs = state.logs.filter(l => l.exerciseId === id && l.date === today);
       if (todayLogs.length > 0) {
         const lastLog = todayLogs[todayLogs.length - 1];
+        continuingLogId = lastLog.id;   // track so Save can update instead of insert
         currentSets = lastLog.sets.map(s => ({
           reps:   String(s.reps   || ''),
           weight: String(s.weight ?? ''),
@@ -5899,8 +5901,9 @@ function renderExerciseGrid() {
   activateImagePlaceholders(grid);
 }
 
-let currentSets   = [{ reps: '', weight: '', note: '' }];
-let isNewSession  = false;  // true after user taps "New session" — suppresses "continuing" badge
+let currentSets      = [{ reps: '', weight: '', note: '' }];
+let isNewSession     = false;   // true after "New session" tap — suppresses continuing badge
+let continuingLogId  = null;    // ID of today's existing log we're continuing — null = create new
 
 function renderSetsCard() {
   const card = $('#setsCard');
@@ -5934,7 +5937,8 @@ function renderSetsCard() {
   if (nsBtn) {
     nsBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      isNewSession = true;
+      isNewSession    = true;
+      continuingLogId = null;  // new session → always create a new log entry
       currentSets = [{ reps: '', weight: '', note: '' }];
       renderSetsCard();
     });
@@ -6019,15 +6023,32 @@ function saveCurrentWorkout() {
 
   if (validSets.length === 0) { showToast('Add at least one set with reps', 'error'); return; }
 
-  const log = {
-    id: 'L' + Date.now() + Math.random().toString(36).slice(2, 6),
-    date, exerciseId: state.selectedExercise, sets: validSets,
-  };
-  state.logs.push(log);
-  saveState();
+  if (continuingLogId && !isNewSession) {
+    // Continuing an existing session → UPDATE the existing log entry's sets
+    // instead of creating a duplicate. The date / exerciseId stay the same.
+    const existing = state.logs.find(l => l.id === continuingLogId);
+    if (existing) {
+      existing.sets = validSets;
+      saveState();
+      showToast(`Updated — ${validSets.length} set${validSets.length === 1 ? '' : 's'}`);
+    } else {
+      // Shouldn't happen but fall through to create new
+      continuingLogId = null;
+    }
+  }
 
-  showToast(`Saved — ${validSets.length} set${validSets.length === 1 ? '' : 's'}`);
+  if (!continuingLogId || isNewSession) {
+    const log = {
+      id: 'L' + Date.now() + Math.random().toString(36).slice(2, 6),
+      date, exerciseId: state.selectedExercise, sets: validSets,
+    };
+    state.logs.push(log);
+    saveState();
+    showToast(`Saved — ${validSets.length} set${validSets.length === 1 ? '' : 's'}`);
+  }
 
+  continuingLogId = null;
+  isNewSession    = false;
   currentSets = [{ reps: '', weight: '', note: '' }];
   state.selectedExercise = null;
   renderExerciseGrid();
