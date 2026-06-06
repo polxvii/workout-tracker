@@ -1402,6 +1402,7 @@ select {
       <label>Quick period</label>
       <div class="period-pills" id="historyPills">
         <button class="pill active" data-days="0">Today</button>
+        <button class="pill" data-days="yesterday">Yesterday</button>
         <button class="pill" data-days="7">7 days</button>
         <button class="pill" data-days="14">14 days</button>
         <button class="pill" data-days="30">30 days</button>
@@ -6065,6 +6066,10 @@ function setHistoryRange(days) {
   if (days === 'all') {
     $('#historyFrom').value = '';
     $('#historyTo').value = '';
+  } else if (days === 'yesterday') {
+    const yest = daysAgoISO(1);
+    $('#historyFrom').value = yest;
+    $('#historyTo').value = yest;
   } else {
     $('#historyFrom').value = daysAgoISO(+days);
     $('#historyTo').value = todayISO();
