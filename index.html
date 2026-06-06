@@ -13,7 +13,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Workout Tracker</title>
-<meta name="app-version" content="1.08">
+<meta name="app-version" content="1.09">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
@@ -1249,7 +1249,7 @@ select {
         Your data is private. Only you can access it.
       </div>
       <div style="text-align:center; font-size:10px; color:var(--text-faint); margin-top:6px; opacity:0.7;">
-        v1.08
+        v1.09
       </div>
     </div>
   </div>
@@ -1835,7 +1835,7 @@ select {
 
     <!-- VERSION FOOTER -->
     <div style="text-align:center; padding:16px 0; font-size:11px; color:var(--text-faint);">
-      Workout Tracker v1.08
+      Workout Tracker v1.09
     </div>
 
   </section>
@@ -5707,27 +5707,25 @@ function populateBodyPartSelects() {
   // + Library default to nothing-selected because picking an exercise
   // there is forward-looking ("I'm about to filter to one body part").
   const LABEL = 'Body part';
-  const all = { defaultSelectAll: true };
   const pairs = [
-    ['#filterBodyPart',   () => { renderExerciseGrid(); }, null],
-    ['#historyBodyPart',  () => { renderHistory(); }, all],
-    ['#libBodyPart',      () => { renderLibrary(); }, null],
-    ['#progressBodyPart', () => { populateProgressExercises(); updateProgressFilterSummary(); renderProgress(); }, all],
+    ['#filterBodyPart',   () => { renderExerciseGrid(); }],
+    ['#historyBodyPart',  () => { renderHistory(); }],
+    ['#libBodyPart',      () => { renderLibrary(); }],
+    ['#progressBodyPart', () => { populateProgressExercises(); updateProgressFilterSummary(); renderProgress(); }],
   ];
-  pairs.forEach(([sel, onChange, opts]) => renderChipMulti(sel, LABEL, BODY_PARTS, onChange, opts));
+  pairs.forEach(([sel, onChange]) => renderChipMulti(sel, LABEL, BODY_PARTS, onChange, null));
 }
 
 function populateTypeSelects() {
   // Each Type filter mirrors EQUIPMENT_TYPES — defined once, used four times.
   const LABEL = 'Type';
-  const all = { defaultSelectAll: true };
   const pairs = [
-    ['#filterType',   () => { renderExerciseGrid(); }, null],
-    ['#historyType',  () => { renderHistory(); }, all],
-    ['#libType',      () => { renderLibrary(); }, null],
-    ['#progressType', () => { populateProgressExercises(); updateProgressFilterSummary(); renderProgress(); }, all],
+    ['#filterType',   () => { renderExerciseGrid(); }],
+    ['#historyType',  () => { renderHistory(); }],
+    ['#libType',      () => { renderLibrary(); }],
+    ['#progressType', () => { populateProgressExercises(); updateProgressFilterSummary(); renderProgress(); }],
   ];
-  pairs.forEach(([sel, onChange, opts]) => renderChipMulti(sel, LABEL, EQUIPMENT_TYPES, onChange, opts));
+  pairs.forEach(([sel, onChange]) => renderChipMulti(sel, LABEL, EQUIPMENT_TYPES, onChange, null));
 }
 
 // FIX: progress dropdown now shows ALL exercises filtered by body part + type
@@ -10208,7 +10206,14 @@ async function init() {
   // class) and call switchView(undefined), hiding every view until you
   // tapped the top tab again. That was the "blank until re-tap" bug.
   document.querySelectorAll('nav.tabs > .tab').forEach(t =>
-    t.addEventListener('click', () => switchView(t.dataset.view))
+    t.addEventListener('click', () => {
+      // Tapping the already-active tab scrolls to the top (like iOS app convention)
+      if (state.currentView === t.dataset.view) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        switchView(t.dataset.view);
+      }
+    })
   );
 
   // Log filters — chip-multi widgets wire their own onChange in
@@ -10279,25 +10284,32 @@ async function init() {
   });
   // History + Progress filter chip-multis wire their own onChange in
   // populateBodyPartSelects / populateTypeSelects — no extra listeners needed.
+  // Progress pills + date inputs auto-execute — no need to tap Execute manually.
+  // Execute button is kept as an explicit trigger but clicking a pill or changing
+  // dates also runs immediately and collapses the filter card.
+  function runProgress() {
+    updateProgressFilterSummary();
+    collapseFilterCard('progressFilterCard');
+    renderProgress();
+  }
   $$('#progressPills .pill').forEach(p => {
     p.addEventListener('click', () => {
       $$('#progressPills .pill').forEach(x => x.classList.remove('active'));
       p.classList.add('active');
       setProgressRange(p.dataset.days);
+      runProgress();
     });
   });
   ['#progressFrom', '#progressTo'].forEach(s => {
     $(s).addEventListener('change', () => {
       $$('#progressPills .pill').forEach(x => x.classList.remove('active'));
+      runProgress();
     });
   });
 
-  // Execute button — actually run the query
-  $('#progressExecuteBtn').addEventListener('click', () => {
-    updateProgressFilterSummary();
-    collapseFilterCard('progressFilterCard');
-    renderProgress();
-  });
+  // Exercise dropdown also auto-executes (already wired via onChange listener above)
+  // Execute button remains for explicit runs after expanding the filter card
+  $('#progressExecuteBtn').addEventListener('click', runProgress);
 
   // Tap header to expand/collapse
   $('#progressFilterHeader').addEventListener('click', () => toggleFilterCard('progressFilterCard'));
