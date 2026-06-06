@@ -6067,7 +6067,12 @@ function setHistoryRange(days) {
     $('#historyFrom').value = '';
     $('#historyTo').value = '';
   } else if (days === 'yesterday') {
-    const yest = daysAgoISO(1);
+    // daysAgoISO uses an offset formula (days-1) so daysAgoISO(1) = today.
+    // Compute yesterday directly with the same timezone logic as todayISO().
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const tz = d.getTimezoneOffset() * 60000;
+    const yest = new Date(d - tz).toISOString().slice(0, 10);
     $('#historyFrom').value = yest;
     $('#historyTo').value = yest;
   } else {
