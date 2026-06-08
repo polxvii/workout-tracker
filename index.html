@@ -1547,7 +1547,7 @@ select {
               <div style="font-weight:600; font-size:14px;">Upload screenshots</div>
             </div>
 
-            <div style="font-size:12px; color:var(--text-dim); margin-bottom:8px;">Pick one or more screenshots. Combining Stats + Zones + Overview tabs gives the most fields. Large images auto-resize. First use downloads ~2 MB of OCR engine.</div>
+            <div style="font-size:12px; color:var(--text-dim); margin-bottom:8px;">Pick <strong>separate</strong> screenshots — select multiple files for best results (better than merging into one image). Garmin: Overview + Stats + HR Zones. Large images auto-resize. First use downloads ~2 MB of OCR engine.</div>
             <input type="file" id="cardioOcrFile" accept="image/*" multiple style="display:none;">
             <button class="btn btn-primary" id="cardioOcrBtn">📷 Pick screenshot(s)</button>
 
@@ -8169,10 +8169,19 @@ function saveCardioSession() {
   populateCardioActivitySelects();
 }
 
-// Parse-from-share: extract numbers from shared workout text
-function parseCardioPaste() {
-  const text = $('#cardioPaste').value;
-  if (!text.trim()) { showToast('Paste some text first', 'error'); return; }
+// Parse-from-share: extract numbers from shared workout text.
+// Called in two modes:
+//   Normal (no arg)  — reads from #cardioPaste, shows toast, advances UI.
+//   Batch (textOverride) — uses supplied text, returns filled count, silent.
+//     Used by runOcrOnScreenshots when multiple images are uploaded so each
+//     image is parsed at full resolution instead of joined into one big blob.
+function parseCardioPaste(textOverride = null) {
+  const text = textOverride !== null ? textOverride : $('#cardioPaste').value;
+  const batchMode = textOverride !== null;
+  if (!text.trim()) {
+    if (!batchMode) showToast('Paste some text first', 'error');
+    return batchMode ? 0 : undefined;
+  }
 
   // Log raw OCR text so we can debug parsing problems by inspecting the
   // console. The text is also kept verbatim in the #cardioPaste textarea
@@ -8286,7 +8295,9 @@ function parseCardioPaste() {
   // avoid false positives elsewhere.
   const distLabel = findValueFor(
     /\bdistance\b/i,
-    /(\d+(?:[\.,]\d+)?)\s*(km|kn|wn|vn|tm|im|nm|mi|miles|meters?|m)\b/i
+    // Exclude km/h (and OCR variants: "km h", "kmh") so that speed values
+    // on the same line as the "Distance" label don't get captured as distance.
+    /(\d+(?:[\.,]\d+)?)\s*(km|kn|wn|vn|tm|im|nm|mi|miles|meters?|m)(?![\s\/]*h)\b/i
   );
 
   // Label-free fallback: scan the WHOLE text for every km mention.
@@ -8493,6 +8504,8 @@ function parseCardioPaste() {
     }
   }
   if (zonesFound > 0) filled += zonesFound;
+
+  if (batchMode) return filled;  // caller handles toast + UI
 
   if (filled === 0) {
     showToast('Could not extract anything — fill in manually', 'error');
@@ -8704,11 +8717,28 @@ async function runOcrOnScreenshots(files) {
     textMain.textContent = `✓ Done — read ${totalChars} chars from ${N} image${N === 1 ? '' : 's'}`;
     textSub.textContent  = 'Parsing fields and moving to review…';
 
-    parseCardioPaste();
-
-    // Advance to the review form with the success banner
-    $('#cardioReviewBanner').style.display = 'block';
-    showCardioStage('form');
+    if (N === 1) {
+      // Single image: normal parse (shows its own toast and advances UI).
+      parseCardioPaste();
+    } else {
+      // Multiple images: parse each screenshot's OCR text separately so each
+      // image is processed at full quality rather than joining all text into
+      // one garbled block. Equivalent to the user tapping "Pick screenshot"
+      // four times in a row — the correct approach for Garmin 4-screen exports.
+      let totalFilled = 0;
+      for (const entry of combinedTexts) {
+        // Strip the "--- Screenshot N (name) ---\n" header we prepended
+        const imgText = entry.replace(/^---[^\n]*---\n/, '').trim();
+        if (imgText) totalFilled += (parseCardioPaste(imgText) || 0);
+      }
+      if (totalFilled > 0) {
+        showToast(`Extracted ${totalFilled} field${totalFilled === 1 ? '' : 's'} from ${N} screenshots`);
+      } else {
+        showToast('Could not extract anything — fill in manually', 'error');
+      }
+      $('#cardioReviewBanner').style.display = 'block';
+      showCardioStage('form');
+    }
     setTimeout(() => $('#cardioFormSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   } catch (err) {
     clearInterval(elapsedTimer);
