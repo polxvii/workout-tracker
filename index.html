@@ -8297,7 +8297,9 @@ function parseCardioPaste(textOverride = null) {
     /\bdistance\b/i,
     // Exclude km/h (and OCR variants: "km h", "kmh") so that speed values
     // on the same line as the "Distance" label don't get captured as distance.
-    /(\d+(?:[\.,]\d+)?)\s*(km|kn|wn|vn|tm|im|nm|mi|miles|meters?|m)(?![\s\/]*h)\b/i
+    // Exclude km/h and OCR garbles like "kmjh" (4.2km/h where "/" → "j").
+    // [\s\/\w]{0,2}h catches: /h, h, " h", "jh", "xh", etc.
+    /(\d+(?:[\.,]\d+)?)\s*(km|kn|wn|vn|tm|im|nm|mi|miles|meters?|m)(?![\s\/\w]{0,2}h)\b/i
   );
 
   // Label-free fallback: scan the WHOLE text for every km mention.
@@ -8306,17 +8308,12 @@ function parseCardioPaste(textOverride = null) {
   // since Garmin shows distance with one digit after the decimal point.
   //
   // COMBINED-IMAGE TOLERANCE: When the user pastes 4 screenshots merged into
-  // one image, OCR quality drops. Two common failures:
-  //   • "3.8 km/h" → "38 km h" — decimal lost, slash OCR'd as space → looks
-  //     like a distance. Fix: exclude any km match followed by optional
-  //     spaces/slash + "h" (covers km/h, kmh, km h).
-  //   • "3.21 km" → "321 km" — decimal point lost → filtered by ≤200 limit
-  //     before the label-anchored path could catch it. Fix: include garbled
-  //     unit variants (kn|wn|vn|tm|im|nm) same as the label-anchored path so
-  //     the sort can prefer them over mis-matched speed values.
+  // one image, OCR quality drops. Common failures:
+  //   • "3.8 km/h" → "38kmh"/"42kmjh" — decimal lost, "/" garbled → matches
+  //     as distance. Fix: exclude km followed by ≤2 garbled chars then "h".
   let distMatch = distLabel;
   if (!distMatch) {
-    const allKm = [...text.matchAll(/(\d+(?:[\.,]\d+)?)\s*(?:km|kn|wn|vn|tm|im|nm)(?![\s\/]*h\b|g)/ig)];
+    const allKm = [...text.matchAll(/(\d+(?:[\.,]\d+)?)\s*(?:km|kn|wn|vn|tm|im|nm)(?![\s\/\w]{0,2}h\b|g)/ig)];
     const ranked = allKm
       .map(m => {
         // Look at what came RIGHT BEFORE this match in the original text.
@@ -8326,8 +8323,8 @@ function parseCardioPaste(textOverride = null) {
         const afterIdx = m.index + m[0].length;
         const after = text.slice(afterIdx, afterIdx + 5);
         const isPace = /\d:\s*$/.test(before);
-        // Belt-and-suspenders: catches "km h" (OCR dropped the slash) as speed
-        const isSpeed = /^[\s\/]*h\b/i.test(after);
+        // Belt-and-suspenders: catches "km h", "kmh", "kmjh" etc. as speed
+        const isSpeed = /^[\s\/\w]{0,2}h\b/i.test(after);
         return {
           raw: m[0], val: m[1],
           hasDecimal: /[.,]/.test(m[1]),
@@ -8410,10 +8407,14 @@ function parseCardioPaste(textOverride = null) {
   //   handles combined-image mode where column positions shift and the aligned
   //   lookup fails, while still requiring ≥3 digits to avoid matching HR (2-3 digits)
   //   or short time components ("18" in "50:18").
+  // NOTE: OCR on combined images often truncates "Calories" → "Calori" or
+  // "Calorie" (missing trailing chars). Use prefix /\bcalori/i so all variants
+  // are caught. The ≥3-digit requirement in findValueFor keeps it from matching
+  // two-digit numbers on adjacent lines (e.g. "50" from "50:18").
   let calMatch =
-       findColumnAlignedValue(/\b(?:total\s*)?calories?\b/i, /\d{2,4}/)
-    || findValueFor(/\b(?:total\s*)?calories?\b/i, /(\d{3,4})\b/)
-    || text.match(/(?:total\s*)?calories?\s*(?:burned?)?\s*[:=]?\s*(\d{1,4})\s*(?:c|cal|kcal)?\b/i)
+       findColumnAlignedValue(/\b(?:total\s*)?calori/i, /\d{2,4}/)
+    || findValueFor(/\b(?:total\s*)?calori/i, /(\d{3,4})\b/)
+    || text.match(/(?:total\s*)?calori(?:es?)?\s*(?:burned?)?\s*[:=]?\s*(\d{1,4})\s*(?:c|cal|kcal)?\b/i)
     || text.match(/\bkcal\s*[:=]?\s*(\d{1,4})\b/i)
     || text.match(/\b(\d{1,4})\s*kcal\b/i)
     || text.match(/\b(\d{1,4})\s*cal(?:ories)?\b/i)
@@ -8437,7 +8438,8 @@ function parseCardioPaste(textOverride = null) {
   // When all label-anchored searches fail (labels split across lines in combined
   // mode), fall back to scanning ALL km/h values and picking the SMALLEST — avg
   // speed is always lower than max speed, so this heuristic avoids returning Max.
-  const _kmh = /(\d+(?:\.\d+)?)\s*km[\s\/]*h/i;
+  // km[\s\/\w]{0,2}h matches: "km/h", "kmh", "km h", "kmjh" (OCR garble of "/").
+  const _kmh = /(\d+(?:\.\d+)?)\s*km[\s\/\w]{0,2}h/i;
   const movingSpeed = findValueFor(/\bavg\s*moving\s*speed\b/i, _kmh);
   const avgSpeed    = findValueFor(/\bavg(?:erage)?\s*speed\b/i,  _kmh);
   const maxSpeed    = findValueFor(/\bmax\s*speed\b/i,            _kmh);
