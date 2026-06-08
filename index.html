@@ -8293,24 +8293,39 @@ function parseCardioPaste() {
   // Critically, skip patterns where the number has a colon right before it
   // (pace format "mm:ss km" or "mm:ss /km"). We also prefer decimal values
   // since Garmin shows distance with one digit after the decimal point.
+  //
+  // COMBINED-IMAGE TOLERANCE: When the user pastes 4 screenshots merged into
+  // one image, OCR quality drops. Two common failures:
+  //   • "3.8 km/h" → "38 km h" — decimal lost, slash OCR'd as space → looks
+  //     like a distance. Fix: exclude any km match followed by optional
+  //     spaces/slash + "h" (covers km/h, kmh, km h).
+  //   • "3.21 km" → "321 km" — decimal point lost → filtered by ≤200 limit
+  //     before the label-anchored path could catch it. Fix: include garbled
+  //     unit variants (kn|wn|vn|tm|im|nm) same as the label-anchored path so
+  //     the sort can prefer them over mis-matched speed values.
   let distMatch = distLabel;
   if (!distMatch) {
-    const allKm = [...text.matchAll(/(\d+(?:[\.,]\d+)?)\s*km(?!\/|g)/ig)];
+    const allKm = [...text.matchAll(/(\d+(?:[\.,]\d+)?)\s*(?:km|kn|wn|vn|tm|im|nm)(?![\s\/]*h\b|g)/ig)];
     const ranked = allKm
       .map(m => {
         // Look at what came RIGHT BEFORE this match in the original text.
         // If there's a "X:" prefix immediately before, this is a pace
         // number masquerading as distance (e.g. "15:21 km" → not 21 km).
         const before = text.slice(Math.max(0, m.index - 4), m.index);
+        const afterIdx = m.index + m[0].length;
+        const after = text.slice(afterIdx, afterIdx + 5);
         const isPace = /\d:\s*$/.test(before);
+        // Belt-and-suspenders: catches "km h" (OCR dropped the slash) as speed
+        const isSpeed = /^[\s\/]*h\b/i.test(after);
         return {
           raw: m[0], val: m[1],
           hasDecimal: /[.,]/.test(m[1]),
           num: parseFloat(String(m[1]).replace(',', '.')),
           isPace,
+          isSpeed,
         };
       })
-      .filter(x => isFinite(x.num) && x.num > 0 && x.num <= 200 && !x.isPace)
+      .filter(x => isFinite(x.num) && x.num > 0 && x.num <= 200 && !x.isPace && !x.isSpeed)
       .sort((a, b) => {
         // Decimal beats integer
         if (a.hasDecimal !== b.hasDecimal) return a.hasDecimal ? -1 : 1;
@@ -8379,9 +8394,14 @@ function parseCardioPaste() {
   //   Garmin Overview (tricky): values and labels on separate lines, side-by-side
   //     "39:55 262"                ← values row
   //     "Total Time Total Calories" ← labels row
-  // The column-aligned lookup handles that layout; the regexes handle the rest.
+  // Primary: column-aligned lookup handles the Garmin side-by-side layout.
+  // Secondary: findValueFor checks prev/next line for a 3-4 digit number — this
+  //   handles combined-image mode where column positions shift and the aligned
+  //   lookup fails, while still requiring ≥3 digits to avoid matching HR (2-3 digits)
+  //   or short time components ("18" in "50:18").
   let calMatch =
        findColumnAlignedValue(/\b(?:total\s*)?calories?\b/i, /\d{2,4}/)
+    || findValueFor(/\b(?:total\s*)?calories?\b/i, /(\d{3,4})\b/)
     || text.match(/(?:total\s*)?calories?\s*(?:burned?)?\s*[:=]?\s*(\d{1,4})\s*(?:c|cal|kcal)?\b/i)
     || text.match(/\bkcal\s*[:=]?\s*(\d{1,4})\b/i)
     || text.match(/\b(\d{1,4})\s*kcal\b/i)
@@ -8399,13 +8419,31 @@ function parseCardioPaste() {
 
   // ============= SPEED (treadmill etc.) =============
   // Garmin: "Avg Speed 3.8 km/h", "Max Speed 9.3 km/h", "Avg Moving Speed 4.1 km/h"
-  // Prefer Avg Moving Speed (when actively moving), then Avg Speed, then Max Speed
-  const movingSpeed = findValueFor(/\bavg\s*moving\s*speed\b/i, /(\d+(?:\.\d+)?)\s*km\/h/i);
-  const avgSpeed    = findValueFor(/\bavg(?:erage)?\s*speed\b/i, /(\d+(?:\.\d+)?)\s*km\/h/i);
-  const maxSpeed    = findValueFor(/\bmax\s*speed\b/i, /(\d+(?:\.\d+)?)\s*km\/h/i);
-  const speedMatch = movingSpeed || avgSpeed || maxSpeed
-                  || text.match(/(\d+(?:\.\d+)?)\s*km\/h/i)
-                  || text.match(/(\d+(?:\.\d+)?)\s*kph/i);
+  // Prefer Avg Moving Speed (when actively moving), then Avg Speed, then Max Speed.
+  //
+  // COMBINED-IMAGE TOLERANCE: OCR on merged screenshots sometimes reads "km/h"
+  // as "km h" (slash dropped). Use km[\s\/]*h to match both variants throughout.
+  // When all label-anchored searches fail (labels split across lines in combined
+  // mode), fall back to scanning ALL km/h values and picking the SMALLEST — avg
+  // speed is always lower than max speed, so this heuristic avoids returning Max.
+  const _kmh = /(\d+(?:\.\d+)?)\s*km[\s\/]*h/i;
+  const movingSpeed = findValueFor(/\bavg\s*moving\s*speed\b/i, _kmh);
+  const avgSpeed    = findValueFor(/\bavg(?:erage)?\s*speed\b/i,  _kmh);
+  const maxSpeed    = findValueFor(/\bmax\s*speed\b/i,            _kmh);
+  let speedMatch = movingSpeed || avgSpeed || maxSpeed;
+  if (!speedMatch) {
+    // Label search failed — scan all km/h occurrences and pick the smallest value
+    // (avoids Max Speed being selected ahead of Avg Speed in combined-image mode).
+    const allSpeeds = [...text.matchAll(/(\d+(?:\.\d+)?)\s*km[\s\/]*h/ig)]
+      .map(m => ({ raw: m[1], num: parseFloat(m[1]) }))
+      .filter(x => x.num > 0 && x.num < 60);
+    if (allSpeeds.length) {
+      allSpeeds.sort((a, b) => a.num - b.num);
+      speedMatch = [null, allSpeeds[0].raw];
+    } else {
+      speedMatch = text.match(/(\d+(?:\.\d+)?)\s*kph/i);
+    }
+  }
   if (speedMatch && +speedMatch[1] > 0 && +speedMatch[1] < 60) {
     if ($('#cardioMachineRow').style.display !== 'grid') $('#cardioMachineRow').style.display = 'grid';
     $('#cardioSpeed').value = speedMatch[1];
