@@ -8839,7 +8839,7 @@ function _renderCardioEntryCardImpl(l) {
         ${l.incline != null ? `<div class="set-chip">Incline: <strong>${l.incline}</strong>%</div>` : ''}
       </div>` : ''}
       ${l.zones ? `<div class="log-sets" style="margin-top:6px;">
-        ${[1,2,3,4,5].map(z => l.zones['z'+z] > 0 ? `<div class="set-chip">Z${z}: <strong>${l.zones['z'+z]}</strong>m</div>` : '').join('')}
+        ${[1,2,3,4,5].map(z => l.zones['z'+z] > 0 ? `<div class="set-chip">Z${z}: <strong>${formatDurationHMS(l.zones['z'+z])}</strong></div>` : '').join('')}
       </div>` : ''}
       ${l.note ? `<div style="font-size:12px; color:var(--text-dim); margin-top:8px;">${escapeHtml(l.note)}</div>` : ''}
     </div>`;
@@ -8971,7 +8971,7 @@ function _renderCardioProgressImpl() {
         }).join('')}
       </div>
       <table class="progress-table">
-        <thead><tr><th>Zone</th><th style="text-align:right">Time</th><th style="text-align:right">% of zoned time</th><th style="text-align:right">Avg per session</th></tr></thead>
+        <thead><tr><th>Zone</th><th style="text-align:right">Time</th><th style="text-align:right">%Zone</th><th style="text-align:right">Avg/session</th></tr></thead>
         <tbody>
           ${[1,2,3,4,5].map(z => `
             <tr>
