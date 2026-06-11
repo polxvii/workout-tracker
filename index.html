@@ -1547,7 +1547,7 @@ select {
               <div style="font-weight:600; font-size:14px;">Upload screenshots</div>
             </div>
 
-            <div style="font-size:12px; color:var(--text-dim); margin-bottom:8px;">Pick <strong>separate</strong> screenshots — select multiple files for best results (better than merging into one image). Garmin: Overview + Stats + HR Zones. Large images auto-resize. First use downloads ~2 MB of OCR engine.</div>
+            <div style="font-size:12px; color:var(--text-dim); margin-bottom:8px;">Pick one or more screenshots. Combining Stats + Zones + Overview tabs gives the most fields. Large images auto-resize. First use downloads ~2 MB of OCR engine.</div>
             <input type="file" id="cardioOcrFile" accept="image/*" multiple style="display:none;">
             <button class="btn btn-primary" id="cardioOcrBtn">📷 Pick screenshot(s)</button>
 
@@ -8169,19 +8169,10 @@ function saveCardioSession() {
   populateCardioActivitySelects();
 }
 
-// Parse-from-share: extract numbers from shared workout text.
-// Called in two modes:
-//   Normal (no arg)  — reads from #cardioPaste, shows toast, advances UI.
-//   Batch (textOverride) — uses supplied text, returns filled count, silent.
-//     Used by runOcrOnScreenshots when multiple images are uploaded so each
-//     image is parsed at full resolution instead of joined into one big blob.
-function parseCardioPaste(textOverride = null) {
-  const text = textOverride !== null ? textOverride : $('#cardioPaste').value;
-  const batchMode = textOverride !== null;
-  if (!text.trim()) {
-    if (!batchMode) showToast('Paste some text first', 'error');
-    return batchMode ? 0 : undefined;
-  }
+// Parse-from-share: extract numbers from shared workout text
+function parseCardioPaste() {
+  const text = $('#cardioPaste').value;
+  if (!text.trim()) { showToast('Paste some text first', 'error'); return; }
 
   // Log raw OCR text so we can debug parsing problems by inspecting the
   // console. The text is also kept verbatim in the #cardioPaste textarea
@@ -8295,45 +8286,31 @@ function parseCardioPaste(textOverride = null) {
   // avoid false positives elsewhere.
   const distLabel = findValueFor(
     /\bdistance\b/i,
-    // Exclude km/h (and OCR variants: "km h", "kmh") so that speed values
-    // on the same line as the "Distance" label don't get captured as distance.
-    // Exclude km/h and OCR garbles like "kmjh" (4.2km/h where "/" → "j").
-    // [\s\/\w]{0,2}h catches: /h, h, " h", "jh", "xh", etc.
-    /(\d+(?:[\.,]\d+)?)\s*(km|kn|wn|vn|tm|im|nm|mi|miles|meters?|m)(?![\s\/\w]{0,2}h)\b/i
+    /(\d+(?:[\.,]\d+)?)\s*(km|kn|wn|vn|tm|im|nm|mi|miles|meters?|m)\b/i
   );
 
   // Label-free fallback: scan the WHOLE text for every km mention.
   // Critically, skip patterns where the number has a colon right before it
   // (pace format "mm:ss km" or "mm:ss /km"). We also prefer decimal values
   // since Garmin shows distance with one digit after the decimal point.
-  //
-  // COMBINED-IMAGE TOLERANCE: When the user pastes 4 screenshots merged into
-  // one image, OCR quality drops. Common failures:
-  //   • "3.8 km/h" → "38kmh"/"42kmjh" — decimal lost, "/" garbled → matches
-  //     as distance. Fix: exclude km followed by ≤2 garbled chars then "h".
   let distMatch = distLabel;
   if (!distMatch) {
-    const allKm = [...text.matchAll(/(\d+(?:[\.,]\d+)?)\s*(?:km|kn|wn|vn|tm|im|nm)(?![\s\/\w]{0,2}h\b|g)/ig)];
+    const allKm = [...text.matchAll(/(\d+(?:[\.,]\d+)?)\s*km(?!\/|g)/ig)];
     const ranked = allKm
       .map(m => {
         // Look at what came RIGHT BEFORE this match in the original text.
         // If there's a "X:" prefix immediately before, this is a pace
         // number masquerading as distance (e.g. "15:21 km" → not 21 km).
         const before = text.slice(Math.max(0, m.index - 4), m.index);
-        const afterIdx = m.index + m[0].length;
-        const after = text.slice(afterIdx, afterIdx + 5);
         const isPace = /\d:\s*$/.test(before);
-        // Belt-and-suspenders: catches "km h", "kmh", "kmjh" etc. as speed
-        const isSpeed = /^[\s\/\w]{0,2}h\b/i.test(after);
         return {
           raw: m[0], val: m[1],
           hasDecimal: /[.,]/.test(m[1]),
           num: parseFloat(String(m[1]).replace(',', '.')),
           isPace,
-          isSpeed,
         };
       })
-      .filter(x => isFinite(x.num) && x.num > 0 && x.num <= 200 && !x.isPace && !x.isSpeed)
+      .filter(x => isFinite(x.num) && x.num > 0 && x.num <= 200 && !x.isPace)
       .sort((a, b) => {
         // Decimal beats integer
         if (a.hasDecimal !== b.hasDecimal) return a.hasDecimal ? -1 : 1;
@@ -8402,19 +8379,10 @@ function parseCardioPaste(textOverride = null) {
   //   Garmin Overview (tricky): values and labels on separate lines, side-by-side
   //     "39:55 262"                ← values row
   //     "Total Time Total Calories" ← labels row
-  // Primary: column-aligned lookup handles the Garmin side-by-side layout.
-  // Secondary: findValueFor checks prev/next line for a 3-4 digit number — this
-  //   handles combined-image mode where column positions shift and the aligned
-  //   lookup fails, while still requiring ≥3 digits to avoid matching HR (2-3 digits)
-  //   or short time components ("18" in "50:18").
-  // NOTE: OCR on combined images often truncates "Calories" → "Calori" or
-  // "Calorie" (missing trailing chars). Use prefix /\bcalori/i so all variants
-  // are caught. The ≥3-digit requirement in findValueFor keeps it from matching
-  // two-digit numbers on adjacent lines (e.g. "50" from "50:18").
+  // The column-aligned lookup handles that layout; the regexes handle the rest.
   let calMatch =
-       findColumnAlignedValue(/\b(?:total\s*)?calori/i, /\d{2,4}/)
-    || findValueFor(/\b(?:total\s*)?calori/i, /(\d{3,4})\b/)
-    || text.match(/(?:total\s*)?calori(?:es?)?\s*(?:burned?)?\s*[:=]?\s*(\d{1,4})\s*(?:c|cal|kcal)?\b/i)
+       findColumnAlignedValue(/\b(?:total\s*)?calories?\b/i, /\d{2,4}/)
+    || text.match(/(?:total\s*)?calories?\s*(?:burned?)?\s*[:=]?\s*(\d{1,4})\s*(?:c|cal|kcal)?\b/i)
     || text.match(/\bkcal\s*[:=]?\s*(\d{1,4})\b/i)
     || text.match(/\b(\d{1,4})\s*kcal\b/i)
     || text.match(/\b(\d{1,4})\s*cal(?:ories)?\b/i)
@@ -8431,32 +8399,13 @@ function parseCardioPaste(textOverride = null) {
 
   // ============= SPEED (treadmill etc.) =============
   // Garmin: "Avg Speed 3.8 km/h", "Max Speed 9.3 km/h", "Avg Moving Speed 4.1 km/h"
-  // Prefer Avg Moving Speed (when actively moving), then Avg Speed, then Max Speed.
-  //
-  // COMBINED-IMAGE TOLERANCE: OCR on merged screenshots sometimes reads "km/h"
-  // as "km h" (slash dropped). Use km[\s\/]*h to match both variants throughout.
-  // When all label-anchored searches fail (labels split across lines in combined
-  // mode), fall back to scanning ALL km/h values and picking the SMALLEST — avg
-  // speed is always lower than max speed, so this heuristic avoids returning Max.
-  // km[\s\/\w]{0,2}h matches: "km/h", "kmh", "km h", "kmjh" (OCR garble of "/").
-  const _kmh = /(\d+(?:\.\d+)?)\s*km[\s\/\w]{0,2}h/i;
-  const movingSpeed = findValueFor(/\bavg\s*moving\s*speed\b/i, _kmh);
-  const avgSpeed    = findValueFor(/\bavg(?:erage)?\s*speed\b/i,  _kmh);
-  const maxSpeed    = findValueFor(/\bmax\s*speed\b/i,            _kmh);
-  let speedMatch = movingSpeed || avgSpeed || maxSpeed;
-  if (!speedMatch) {
-    // Label search failed — scan all km/h occurrences and pick the smallest value
-    // (avoids Max Speed being selected ahead of Avg Speed in combined-image mode).
-    const allSpeeds = [...text.matchAll(/(\d+(?:\.\d+)?)\s*km[\s\/]*h/ig)]
-      .map(m => ({ raw: m[1], num: parseFloat(m[1]) }))
-      .filter(x => x.num > 0 && x.num < 60);
-    if (allSpeeds.length) {
-      allSpeeds.sort((a, b) => a.num - b.num);
-      speedMatch = [null, allSpeeds[0].raw];
-    } else {
-      speedMatch = text.match(/(\d+(?:\.\d+)?)\s*kph/i);
-    }
-  }
+  // Prefer Avg Moving Speed (when actively moving), then Avg Speed, then Max Speed
+  const movingSpeed = findValueFor(/\bavg\s*moving\s*speed\b/i, /(\d+(?:\.\d+)?)\s*km\/h/i);
+  const avgSpeed    = findValueFor(/\bavg(?:erage)?\s*speed\b/i, /(\d+(?:\.\d+)?)\s*km\/h/i);
+  const maxSpeed    = findValueFor(/\bmax\s*speed\b/i, /(\d+(?:\.\d+)?)\s*km\/h/i);
+  const speedMatch = movingSpeed || avgSpeed || maxSpeed
+                  || text.match(/(\d+(?:\.\d+)?)\s*km\/h/i)
+                  || text.match(/(\d+(?:\.\d+)?)\s*kph/i);
   if (speedMatch && +speedMatch[1] > 0 && +speedMatch[1] < 60) {
     if ($('#cardioMachineRow').style.display !== 'grid') $('#cardioMachineRow').style.display = 'grid';
     $('#cardioSpeed').value = speedMatch[1];
@@ -8506,8 +8455,6 @@ function parseCardioPaste(textOverride = null) {
     }
   }
   if (zonesFound > 0) filled += zonesFound;
-
-  if (batchMode) return filled;  // caller handles toast + UI
 
   if (filled === 0) {
     showToast('Could not extract anything — fill in manually', 'error');
@@ -8719,28 +8666,11 @@ async function runOcrOnScreenshots(files) {
     textMain.textContent = `✓ Done — read ${totalChars} chars from ${N} image${N === 1 ? '' : 's'}`;
     textSub.textContent  = 'Parsing fields and moving to review…';
 
-    if (N === 1) {
-      // Single image: normal parse (shows its own toast and advances UI).
-      parseCardioPaste();
-    } else {
-      // Multiple images: parse each screenshot's OCR text separately so each
-      // image is processed at full quality rather than joining all text into
-      // one garbled block. Equivalent to the user tapping "Pick screenshot"
-      // four times in a row — the correct approach for Garmin 4-screen exports.
-      let totalFilled = 0;
-      for (const entry of combinedTexts) {
-        // Strip the "--- Screenshot N (name) ---\n" header we prepended
-        const imgText = entry.replace(/^---[^\n]*---\n/, '').trim();
-        if (imgText) totalFilled += (parseCardioPaste(imgText) || 0);
-      }
-      if (totalFilled > 0) {
-        showToast(`Extracted ${totalFilled} field${totalFilled === 1 ? '' : 's'} from ${N} screenshots`);
-      } else {
-        showToast('Could not extract anything — fill in manually', 'error');
-      }
-      $('#cardioReviewBanner').style.display = 'block';
-      showCardioStage('form');
-    }
+    parseCardioPaste();
+
+    // Advance to the review form with the success banner
+    $('#cardioReviewBanner').style.display = 'block';
+    showCardioStage('form');
     setTimeout(() => $('#cardioFormSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   } catch (err) {
     clearInterval(elapsedTimer);
