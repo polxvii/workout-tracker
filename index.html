@@ -6121,7 +6121,9 @@ function renderHistory() {
   logs.forEach(l => {
     if (!byExercise[l.exerciseId]) {
       const maxW = Math.max(0, ...l.sets.map(s => s.weight ?? 0));
-      byExercise[l.exerciseId] = { sessions: 0, totalSets: 0, totalReps: 0, totalWeight: 0, weightedSets: 0, lastDate: l.date, lastWeight: maxW > 0 ? maxW : null };
+      const setsAtMax = maxW > 0 ? l.sets.filter(s => (s.weight ?? 0) === maxW) : l.sets;
+      const bestSet = setsAtMax.reduce((b, s) => !b || s.reps > b.reps ? s : b, null);
+      byExercise[l.exerciseId] = { sessions: 0, totalSets: 0, totalReps: 0, totalWeight: 0, weightedSets: 0, lastDate: l.date, lastWeight: maxW > 0 ? maxW : null, lastReps: bestSet ? bestSet.reps : null };
     }
     const e = byExercise[l.exerciseId];
     e.sessions++;
@@ -6139,6 +6141,7 @@ function renderHistory() {
       sessions: d.sessions,
       lastDate: d.lastDate,
       lastWeight: d.lastWeight,
+      lastReps: d.lastReps,
     }))
     .filter(r => r.ex)
     .sort((a, b) => b.lastDate.localeCompare(a.lastDate));
@@ -6157,7 +6160,7 @@ function renderHistory() {
       <div class="card-title">Last trained</div>
       <div class="progress-table-wrap">
       <table class="progress-table">
-        <thead><tr><th>Exercise</th><th style="text-align:right">Last trained</th><th style="text-align:right">Last wt</th><th style="text-align:center">Sessions</th></tr></thead>
+        <thead><tr><th>Exercise</th><th style="text-align:right">Last trained</th><th style="text-align:right">Last wt</th><th style="text-align:center">Last reps</th><th style="text-align:center">Sessions</th></tr></thead>
         <tbody>
           ${lastRows.map(r => {
             const daysAgo = Math.floor((new Date(today) - new Date(r.lastDate)) / 86400000);
@@ -6174,6 +6177,7 @@ function renderHistory() {
                 <div style="font-size:11px; color:${daysColor}; font-weight:600">${daysLabel}</div>
               </td>
               <td style="text-align:right">${r.lastWeight != null ? r.lastWeight : '—'}</td>
+              <td style="text-align:center">${r.lastReps != null ? r.lastReps : '—'}</td>
               <td style="text-align:center">${r.sessions}</td>
             </tr>`;
           }).join('')}
