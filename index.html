@@ -6120,7 +6120,8 @@ function renderHistory() {
   const byExercise = {};
   logs.forEach(l => {
     if (!byExercise[l.exerciseId]) {
-      byExercise[l.exerciseId] = { sessions: 0, totalSets: 0, totalReps: 0, totalWeight: 0, weightedSets: 0 };
+      const maxW = Math.max(0, ...l.sets.map(s => s.weight ?? 0));
+      byExercise[l.exerciseId] = { sessions: 0, totalSets: 0, totalReps: 0, totalWeight: 0, weightedSets: 0, lastDate: l.date, lastWeight: maxW > 0 ? maxW : null };
     }
     const e = byExercise[l.exerciseId];
     e.sessions++;
@@ -6131,16 +6132,16 @@ function renderHistory() {
     });
   });
 
-  const avgRows = Object.entries(byExercise)
+  const today = todayISO();
+  const lastRows = Object.entries(byExercise)
     .map(([id, d]) => ({
       ex: exerciseById(id),
       sessions: d.sessions,
-      avgSets: d.totalSets / d.sessions,
-      avgReps: d.totalReps / d.totalSets,
-      avgWeight: d.weightedSets > 0 ? d.totalWeight / d.weightedSets : null,
+      lastDate: d.lastDate,
+      lastWeight: d.lastWeight,
     }))
     .filter(r => r.ex)
-    .sort((a, b) => b.sessions - a.sessions);
+    .sort((a, b) => b.lastDate.localeCompare(a.lastDate));
 
   summary.innerHTML = `
     <div class="card">
@@ -6153,24 +6154,27 @@ function renderHistory() {
       </div>
     </div>
     <div class="card">
-      <div class="card-title">Average per exercise</div>
+      <div class="card-title">Last trained</div>
       <div class="progress-table-wrap">
       <table class="progress-table">
-        <thead><tr><th>Exercise</th><th style="text-align:center">Sessions</th><th style="text-align:center">Avg sets</th><th style="text-align:center">Avg reps</th><th style="text-align:right">Avg wt</th><th style="text-align:right" title="All-time personal record (max weight)">PR</th></tr></thead>
+        <thead><tr><th>Exercise</th><th style="text-align:right">Last trained</th><th style="text-align:right">Last wt</th><th style="text-align:center">Sessions</th></tr></thead>
         <tbody>
-          ${avgRows.map(r => {
-            const pr = getPR(r.ex.id);
+          ${lastRows.map(r => {
+            const daysAgo = Math.floor((new Date(today) - new Date(r.lastDate)) / 86400000);
+            const daysColor = daysAgo <= 7 ? 'var(--success)' : daysAgo <= 14 ? '#f59e0b' : 'var(--danger)';
+            const daysLabel = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : daysAgo + 'd ago';
             return `
             <tr>
               <td>
                 <div style="font-weight:600">${escapeHtml(r.ex.name)}</div>
                 <div style="font-size:11px;color:var(--text-faint)">${escapeHtml(r.ex.bodyPart)} · ${escapeHtml(r.ex.type)}</div>
               </td>
+              <td style="text-align:right">
+                <div style="font-size:12px">${formatDate(r.lastDate)}</div>
+                <div style="font-size:11px; color:${daysColor}; font-weight:600">${daysLabel}</div>
+              </td>
+              <td style="text-align:right">${r.lastWeight != null ? r.lastWeight : '—'}</td>
               <td style="text-align:center">${r.sessions}</td>
-              <td style="text-align:center">${r.avgSets.toFixed(1)}</td>
-              <td style="text-align:center">${r.avgReps.toFixed(1)}</td>
-              <td style="text-align:right">${r.avgWeight != null ? r.avgWeight.toFixed(1) : '—'}</td>
-              <td style="text-align:right; color:var(--primary); font-weight:600;">${pr ? pr.weight : '—'}</td>
             </tr>`;
           }).join('')}
         </tbody>
