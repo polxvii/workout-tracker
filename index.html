@@ -8289,11 +8289,17 @@ function parseCardioPaste() {
     /(\d+(?:[\.,]\d+)?)\s*(km|kn|wn|vn|tm|im|nm|mi|miles|meters?|m)\b/i
   );
 
+  // Garmin Overview lays out distance as a bare decimal on a line of its own
+  // above the "Distance" label — e.g. "3.95\nDistance" — with no unit suffix.
+  // Require a decimal point to avoid matching stray integers.
+  // If distMatch[2] is undefined the final unit-resolution code defaults to km.
+  const distLabelBare = !distLabel && findValueFor(/\bdistance\b/i, /(\d+[.,]\d+)/);
+
   // Label-free fallback: scan the WHOLE text for every km mention.
   // Critically, skip patterns where the number has a colon right before it
   // (pace format "mm:ss km" or "mm:ss /km"). We also prefer decimal values
   // since Garmin shows distance with one digit after the decimal point.
-  let distMatch = distLabel;
+  let distMatch = distLabel || distLabelBare;
   if (!distMatch) {
     const allKm = [...text.matchAll(/(\d+(?:[\.,]\d+)?)\s*km(?!\/|g)/ig)];
     const ranked = allKm
