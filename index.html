@@ -5927,7 +5927,7 @@ function renderSetsCard() {
   // PR + badges always on a second line so long exercise names don't cause wrapping
   const subLine = (pr || showContinue)
     ? `<div style="font-size:12px; font-weight:400; color:var(--text-dim); margin-top:2px; display:flex; align-items:center; gap:8px;">
-         ${pr ? `<span style="font-weight:600; color:var(--text-dim);">PR ${pr.weight}</span>` : ''}
+         ${pr ? `<span style="font-weight:700; color:#f59e0b;">⭐ PR ${pr.weight}</span>` : ''}
          ${continueBadge}${newSessionBtn}
        </div>`
     : '';
@@ -8180,7 +8180,8 @@ function parseCardioPaste() {
   console.log('[OCR raw text]\n' + text);
 
   let filled = 0;
-  const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
+  // Normalize OCR spaced decimals: "1 . 96 km" → "1.96 km"
+  const lines = text.replace(/(\d)\s+\.\s+(\d)/g, '$1.$2').split(/\n+/).map(l => l.trim()).filter(Boolean);
 
   // Helper: find the value on the same line as a label, or on the next line.
   // Many Garmin/Strava screenshots put labels on one line, values on the next.
