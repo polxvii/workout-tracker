@@ -6156,6 +6156,36 @@ function renderHistory() {
     .filter(r => r.ex)
     .sort((a, b) => b.lastDate.localeCompare(a.lastDate));
 
+  const MZONE = {
+    'Chest (mid)':'chest','Chest (upper)':'chest','Chest (lower)':'chest','Chest (outer)':'chest','Chest (inner)':'chest','Chest':'chest',
+    'Shoulders (front)':'fdelt','Shoulders (side)':'sdelt','Shoulders (rear)':'rdelt','Rear Delts':'rdelt',
+    'Biceps':'biceps','Biceps (lower)':'biceps','Biceps (long head)':'biceps','Biceps (peak)':'biceps','Brachialis':'biceps',
+    'Triceps':'triceps','Triceps (long head)':'triceps','Triceps (lateral head)':'triceps','Triceps (medial head)':'triceps',
+    'Forearms':'forearms','Brachioradialis':'forearms',
+    'Upper Back':'upperback','Upper Back / Traps':'upperback',
+    'Lats':'lats','Lats (outer)':'lats',
+    'Traps (upper)':'traps','Traps (lower)':'traps',
+    'Lower Back / Erectors':'lowerback','Lower Back':'lowerback',
+    'Core':'core','Obliques':'obliques','Serratus':'core',
+    'Quads':'quads','Adductors':'quads',
+    'Hamstrings':'hams','Glutes':'glutes',
+    'Gastrocnemius':'calves','Soleus':'calves','Rotator Cuff':'rdelt',
+  };
+  const mmp = {}, mms = {};
+  logs.forEach(l => {
+    const ex = exerciseById(l.exerciseId);
+    if (!ex) return;
+    const pz = MZONE[ex.primaryMuscle];
+    if (pz) mmp[pz] = (mmp[pz]||0) + 1;
+    (ex.secondaryMuscles||[]).forEach(sm => { const sz=MZONE[sm]; if(sz) mms[sz]=(mms[sz]||0)+1; });
+  });
+  const cC = {};
+  ['chest','fdelt','sdelt','rdelt','biceps','triceps','forearms','upperback','lats','traps','lowerback','core','obliques','quads','hams','glutes','calves'].forEach(z => {
+    const p=mmp[z]||0, s=mms[z]||0;
+    cC[z] = p>=3?'#dc2626':p>=1?'#ea580c':s>=1?'#ca8a04':null;
+  });
+  cC.shoulders = (() => { const p=Math.max(mmp.fdelt||0,mmp.sdelt||0),s=Math.max(mms.fdelt||0,mms.sdelt||0); return p>=3?'#dc2626':p>=1?'#ea580c':s>=1?'#ca8a04':null; })();
+
   summary.innerHTML = `
     <div class="card">
       <div class="card-title">Summary</div>
@@ -6164,6 +6194,62 @@ function renderHistory() {
         <div class="stat-box"><div class="stat-label">Exercises</div><div class="stat-value">${logs.length}<span class="stat-unit"> logged</span></div></div>
         <div class="stat-box"><div class="stat-label">Total sets</div><div class="stat-value">${totalSets}</div></div>
         <div class="stat-box"><div class="stat-label">Total reps</div><div class="stat-value">${totalReps}</div></div>
+      </div>
+    </div>
+    <div class="card" style="padding:12px;">
+      <div class="card-title">Muscles trained</div>
+      <div style="display:flex;justify-content:space-around;font-size:11px;color:var(--text-dim);padding:0 22%;margin-bottom:2px;"><span>Front</span><span>Back</span></div>
+      <svg viewBox="0 0 300 290" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
+        <circle cx="74" cy="21" r="17" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="67" y="37" width="14" height="14" rx="5" fill="#3a3a3a"/>
+        <path d="M40,50 C55,46 93,46 108,50 L106,150 C91,155 57,155 42,150 Z" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <ellipse cx="30" cy="57" rx="14" ry="12" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <ellipse cx="118" cy="57" rx="14" ry="12" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="15" y="56" width="18" height="72" rx="9" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="115" y="56" width="18" height="72" rx="9" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="17" y="130" width="16" height="52" rx="8" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="115" y="130" width="16" height="52" rx="8" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="38" y="154" width="29" height="66" rx="10" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="81" y="154" width="29" height="66" rx="10" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="40" y="222" width="25" height="60" rx="10" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="83" y="222" width="25" height="60" rx="10" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        ${cC.chest ? `<ellipse cx="74" cy="76" rx="29" ry="21" fill="${cC.chest}" opacity="0.88"/>` : ''}
+        ${cC.shoulders ? `<ellipse cx="30" cy="57" rx="12" ry="11" fill="${cC.shoulders}" opacity="0.88"/><ellipse cx="118" cy="57" rx="12" ry="11" fill="${cC.shoulders}" opacity="0.88"/>` : ''}
+        ${cC.biceps ? `<rect x="16" y="58" width="15" height="44" rx="7" fill="${cC.biceps}" opacity="0.88"/><rect x="117" y="58" width="15" height="44" rx="7" fill="${cC.biceps}" opacity="0.88"/>` : ''}
+        ${cC.forearms ? `<rect x="18" y="132" width="13" height="48" rx="6" fill="${cC.forearms}" opacity="0.88"/><rect x="117" y="132" width="13" height="48" rx="6" fill="${cC.forearms}" opacity="0.88"/>` : ''}
+        ${cC.core ? `<rect x="44" y="100" width="60" height="46" rx="8" fill="${cC.core}" opacity="0.88"/>` : ''}
+        ${cC.obliques ? `<rect x="40" y="102" width="12" height="42" rx="6" fill="${cC.obliques}" opacity="0.88"/><rect x="96" y="102" width="12" height="42" rx="6" fill="${cC.obliques}" opacity="0.88"/>` : ''}
+        ${cC.quads ? `<rect x="39" y="156" width="27" height="62" rx="9" fill="${cC.quads}" opacity="0.88"/><rect x="82" y="156" width="27" height="62" rx="9" fill="${cC.quads}" opacity="0.88"/>` : ''}
+        ${cC.calves ? `<rect x="41" y="224" width="23" height="56" rx="9" fill="${cC.calves}" opacity="0.88"/><rect x="84" y="224" width="23" height="56" rx="9" fill="${cC.calves}" opacity="0.88"/>` : ''}
+        <line x1="150" y1="10" x2="150" y2="285" stroke="#333" stroke-width="1" stroke-dasharray="4,3"/>
+        <circle cx="226" cy="21" r="17" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="219" y="37" width="14" height="14" rx="5" fill="#3a3a3a"/>
+        <path d="M192,50 C207,46 245,46 260,50 L258,150 C243,155 209,155 194,150 Z" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <ellipse cx="182" cy="57" rx="14" ry="12" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <ellipse cx="270" cy="57" rx="14" ry="12" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="167" y="56" width="18" height="72" rx="9" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="267" y="56" width="18" height="72" rx="9" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="169" y="130" width="16" height="52" rx="8" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="267" y="130" width="16" height="52" rx="8" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="190" y="154" width="29" height="66" rx="10" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="233" y="154" width="29" height="66" rx="10" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="192" y="222" width="25" height="60" rx="10" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        <rect x="235" y="222" width="25" height="60" rx="10" fill="#3a3a3a" stroke="#555" stroke-width="1.5"/>
+        ${cC.traps ? `<ellipse cx="226" cy="63" rx="25" ry="14" fill="${cC.traps}" opacity="0.88"/>` : ''}
+        ${cC.upperback ? `<rect x="200" y="70" width="52" height="44" rx="8" fill="${cC.upperback}" opacity="0.88"/>` : ''}
+        ${cC.lats ? `<rect x="190" y="82" width="18" height="54" rx="8" fill="${cC.lats}" opacity="0.88"/><rect x="244" y="82" width="18" height="54" rx="8" fill="${cC.lats}" opacity="0.88"/>` : ''}
+        ${cC.rdelt ? `<ellipse cx="182" cy="57" rx="12" ry="11" fill="${cC.rdelt}" opacity="0.88"/><ellipse cx="270" cy="57" rx="12" ry="11" fill="${cC.rdelt}" opacity="0.88"/>` : ''}
+        ${cC.triceps ? `<rect x="168" y="58" width="15" height="44" rx="7" fill="${cC.triceps}" opacity="0.88"/><rect x="269" y="58" width="15" height="44" rx="7" fill="${cC.triceps}" opacity="0.88"/>` : ''}
+        ${cC.lowerback ? `<rect x="206" y="116" width="40" height="32" rx="7" fill="${cC.lowerback}" opacity="0.88"/>` : ''}
+        ${cC.glutes ? `<ellipse cx="209" cy="162" rx="20" ry="17" fill="${cC.glutes}" opacity="0.88"/><ellipse cx="243" cy="162" rx="20" ry="17" fill="${cC.glutes}" opacity="0.88"/>` : ''}
+        ${cC.hams ? `<rect x="191" y="165" width="27" height="56" rx="9" fill="${cC.hams}" opacity="0.88"/><rect x="234" y="165" width="27" height="56" rx="9" fill="${cC.hams}" opacity="0.88"/>` : ''}
+        ${cC.calves ? `<rect x="193" y="224" width="23" height="56" rx="9" fill="${cC.calves}" opacity="0.88"/><rect x="236" y="224" width="23" height="56" rx="9" fill="${cC.calves}" opacity="0.88"/>` : ''}
+        ${cC.forearms ? `<rect x="170" y="132" width="13" height="48" rx="6" fill="${cC.forearms}" opacity="0.88"/><rect x="268" y="132" width="13" height="48" rx="6" fill="${cC.forearms}" opacity="0.88"/>` : ''}
+      </svg>
+      <div style="display:flex;gap:14px;justify-content:center;margin-top:6px;font-size:10px;color:var(--text-dim);flex-wrap:wrap;">
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;background:#dc2626;border-radius:2px;display:inline-block;"></span>Heavy (3+)</span>
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;background:#ea580c;border-radius:2px;display:inline-block;"></span>Trained (1–2)</span>
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;background:#ca8a04;border-radius:2px;display:inline-block;"></span>Secondary</span>
       </div>
     </div>
     <div class="card">
