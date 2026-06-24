@@ -4929,6 +4929,7 @@ function exerciseImage(id) {
   if (ex.slug)          key = 'slug:' + ex.slug;
   else if (ex.wikiPath) key = 'wiki:' + ex.wikiPath;
   else                  key = ex.image;
+  if (!key) return exerciseSvg(id);
   // 1x1 transparent gif to suppress the broken-image icon before the real src is set
   const placeholderSrc = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
   return `<div class="img-holder" data-img-folder="${escapeHtml(key)}" style="width:100%; height:100%; position:relative;">
@@ -9686,7 +9687,7 @@ function customExToRow(ex) {
     id: ex.id,
     user_id: currentUser.id,
     type: 'custom_exercise',
-    date: '',
+    date: '1970-01-01',
     data: ex,
     updated_at: new Date().toISOString(),
   };
@@ -9696,7 +9697,7 @@ function customActivityToRow(a) {
     id: a.id,
     user_id: currentUser.id,
     type: 'custom_activity',
-    date: '',
+    date: '1970-01-01',
     data: a,
     updated_at: new Date().toISOString(),
   };
@@ -9749,8 +9750,11 @@ async function pullFromRemote() {
   const customActRows = rows.filter(r => r.type === 'custom_activity');
 
   state.logs             = logRows.map(rowToLog);
-  state.customExercises  = customExRows.map(r => r.data);
-  state.customActivities = customActRows.map(r => r.data);
+  // Only overwrite local custom definitions when Supabase actually has rows.
+  // If the remote sync previously failed (e.g. bad date value), this prevents
+  // pullFromRemote from wiping exercises/activities that only exist locally.
+  if (customExRows.length > 0)  state.customExercises  = customExRows.map(r => r.data);
+  if (customActRows.length > 0) state.customActivities = customActRows.map(r => r.data);
 
   lastSyncedIds = new Set(state.logs.map(l => l.id));
   saveStateLocal();
