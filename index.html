@@ -35,6 +35,10 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* iOS Safari needs overflow-x on BOTH html and body to actually clip.
+   max-width:100vw stops any flex/grid child from forcing wider than the viewport. */
+html { overflow-x: hidden; max-width: 100vw; width: 100%; }
+
 html, body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
@@ -42,20 +46,21 @@ html, body {
   line-height: 1.5;
   -webkit-tap-highlight-color: transparent;
   font-size: 15px;
-  /* Belt-and-braces against accidental horizontal scroll. Any child
-     element that's wider than the viewport (e.g. native <input> with
-     a min-content size larger than its grid cell) is clipped instead
-     of pushing the whole page sideways. */
   overflow-x: hidden;
   max-width: 100vw;
 }
 
-body { padding-bottom: 80px; }
+body { padding-bottom: 80px; position: relative; width: 100%; }
 
-/* Inputs inside grids must be allowed to shrink below their default
-   min-content width, otherwise <input type="number"> forces ~150px
-   per column and a 5-col macro row blows past the viewport on phones. */
-input[type="number"], input[type="text"], input[type="search"], select { min-width: 0; max-width: 100%; }
+/* Containers inherit the constraint so nested grids can't escape. */
+main, .content, section.view, .card, .form-group {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Native <input> defaults to min-content (~150px) which the macro grid's
+   1fr column can't override unless we explicitly set min-width:0. */
+input, select, textarea, button { min-width: 0; max-width: 100%; }
 
 /* Header */
 .header {
