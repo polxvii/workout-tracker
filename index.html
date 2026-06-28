@@ -10337,13 +10337,17 @@ function renderSearchResults() {
   }
 
   resultsEl.innerHTML = items.map((it, i) => {
-      // Build the serving-unit dropdown: default first, then alts, then "g (custom)"
+      // Build the serving-unit dropdown: default first, then alts, then custom
       const def = it.default_serving || { unit: 'serving', grams: 100 };
       const alts = Array.isArray(it.alt_servings) ? it.alt_servings : [];
       const allServings = [def, ...alts];
+      // Drink heuristic: if the name reads as a beverage, display ml everywhere
+      // (ml ≈ g for nutrition math; pure label change so the entry feels right).
+      const isLiquid = /(beer|ale|\bipa\b|lager|stout|wine|cider|sake|cola|soda|juice|milk|smoothie|drink|beverage|tea|coffee|water|nectar|kombucha|cocktail|lemonade|whisky|vodka|gin|rum)/i.test(it.name || '');
+      const unitLabel = isLiquid ? 'ml' : 'g';
       const unitOpts = allServings.map((s, j) =>
-        `<option value="${j}" data-grams="${s.grams}">1 ${escapeHtml(s.unit)} (${s.grams}g)</option>`
-      ).join('') + `<option value="custom">g (custom)</option>`;
+        `<option value="${j}" data-grams="${s.grams}">1 ${escapeHtml(s.unit)} (${s.grams}${unitLabel})</option>`
+      ).join('') + `<option value="custom">${unitLabel} (custom)</option>`;
 
       const p100 = it.per_100g;
       const defKcal = Math.round(p100.kcal * def.grams / 100);
@@ -10658,8 +10662,18 @@ async function lookupBarcode(code) {
     const tid = setTimeout(() => c.abort(), 8000);
     const res = await fetch(url, { signal: c.signal });
     clearTimeout(tid);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+
+    // OFF returns HTTP 404 for an unknown barcode. That's the SAME case as
+    // "status:0 product not found" — treat both as "not in database" and show
+    // the AI search handoff, not the generic error catch.
+    let data = null;
+    if (res.status === 404) {
+      data = { status: 0, product: null };
+    } else if (!res.ok) {
+      throw new Error('HTTP ' + res.status);
+    } else {
+      data = await res.json();
+    }
 
     if (data.status !== 1 || !data.product) {
       $('#barcodeStatus').textContent = '❌ Barcode ' + code + ' not found in database.';
