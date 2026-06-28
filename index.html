@@ -2048,12 +2048,11 @@ select {
     </div>
 
     <!-- Fallback: manual barcode entry if camera/detector unavailable -->
-    <div id="barcodeFallback" style="display:none; margin-bottom:10px;">
-      <label style="font-size:11px;">Enter barcode digits manually</label>
-      <div style="display:flex; gap:6px;">
-        <input type="text" id="barcodeManualInput" inputmode="numeric" pattern="[0-9]*" placeholder="8 to 14 digits" autocomplete="off" style="flex:1;">
-        <button type="button" class="btn btn-primary" id="barcodeManualLookupBtn" style="padding:8px 14px;">Look up</button>
-      </div>
+    <div id="barcodeFallback" style="display:none; margin-bottom:10px; padding:14px; background:var(--surface-2); border-radius:8px;">
+      <div style="font-size:13px; font-weight:600; margin-bottom:6px;">Enter barcode digits</div>
+      <div style="font-size:11px; color:var(--text-faint); margin-bottom:10px; line-height:1.4;">The digits are printed under the black-and-white barcode on the package — usually 8 to 14 digits long.</div>
+      <input type="text" id="barcodeManualInput" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 8855063108089" autocomplete="off" style="width:100%; padding:12px; font-size:16px; min-height:44px; margin-bottom:8px;">
+      <button type="button" class="btn btn-primary" id="barcodeManualLookupBtn" style="width:100%; padding:12px; font-size:14px;">🔎 Look up barcode</button>
     </div>
 
     <!-- Result block (shown after a successful lookup) -->
@@ -10505,9 +10504,31 @@ let barcodeStream = null;        // active MediaStream so we can stop tracks on 
 let barcodeScanLoopId = null;    // requestAnimationFrame handle for the detection loop
 let barcodeDetectorInstance = null;
 let barcodeBusy = false;         // suppresses re-triggering while a lookup is in flight
+let zxingReader = null;          // active ZXing reader instance (fallback path)
+let zxingLoadPromise = null;     // memoize the dynamic script load
 
 function isBarcodeDetectorSupported() {
   return typeof window.BarcodeDetector === 'function';
+}
+
+// Lazy-load ZXing-js the first time we need it. ~140KB gzip, served from
+// jsdelivr CDN. We only pay this cost when the native BarcodeDetector
+// is unavailable (mostly older iOS Safari and some Android browsers).
+function loadZXing() {
+  if (window.ZXing) return Promise.resolve(window.ZXing);
+  if (zxingLoadPromise) return zxingLoadPromise;
+  zxingLoadPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+    s.async = true;
+    s.onload = () => {
+      if (window.ZXing) resolve(window.ZXing);
+      else reject(new Error('ZXing loaded but global not set'));
+    };
+    s.onerror = () => reject(new Error('ZXing CDN load failed'));
+    document.head.appendChild(s);
+  });
+  return zxingLoadPromise;
 }
 
 async function openBarcodeModal() {
@@ -10519,9 +10540,9 @@ async function openBarcodeModal() {
   $('#barcodeManualInput').value = '';
   barcodeBusy = false;
 
-  if (!isBarcodeDetectorSupported()) {
-    // Older browser: skip camera entirely, show manual entry
-    $('#barcodeStatus').textContent = '⚠️ Live scanner not supported on this browser. Type the barcode digits below.';
+  // Camera-less browsers: skip directly to manual entry
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    $('#barcodeStatus').textContent = '⚠️ Camera not available on this browser. Type the barcode digits below.';
     $('#barcodeViewport').style.display = 'none';
     $('#barcodeFallback').style.display = 'block';
     return;
@@ -10530,6 +10551,7 @@ async function openBarcodeModal() {
   $('#barcodeViewport').style.display = 'block';
   $('#barcodeStatus').textContent = 'Starting camera…';
 
+  // Try to grab the camera first — fail fast if user denies or no device
   try {
     barcodeStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -10538,16 +10560,46 @@ async function openBarcodeModal() {
     const video = $('#barcodeVideo');
     video.srcObject = barcodeStream;
     await video.play();
+  } catch (err) {
+    $('#barcodeStatus').textContent = '⚠️ Camera unavailable (' + (err.message || err.name) + '). Type the barcode manually.';
+    $('#barcodeViewport').style.display = 'none';
+    $('#barcodeFallback').style.display = 'block';
+    return;
+  }
 
+  // Path 1 — native BarcodeDetector (fastest, but not on every browser)
+  if (isBarcodeDetectorSupported()) {
     barcodeDetectorInstance = new BarcodeDetector({
       formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'],
     });
-
     $('#barcodeStatus').textContent = 'Point the camera at a barcode…';
     scanBarcodeLoop();
-  } catch (err) {
-    // Camera denied or unavailable — fall back to manual entry
-    $('#barcodeStatus').textContent = '⚠️ Camera unavailable (' + (err.message || err.name) + '). Type the barcode manually.';
+    return;
+  }
+
+  // Path 2 — ZXing-js (loaded on demand, works on every modern browser)
+  $('#barcodeStatus').textContent = 'Loading scanner…';
+  try {
+    const ZXing = await loadZXing();
+    const codeReader = new ZXing.BrowserMultiFormatReader();
+    zxingReader = codeReader;
+    $('#barcodeStatus').textContent = 'Point the camera at a barcode…';
+    // decodeFromStream uses the stream we already opened — avoids re-requesting permission
+    codeReader.decodeFromStream(barcodeStream, $('#barcodeVideo'), (result, err) => {
+      if (barcodeBusy) return;
+      if (result) {
+        const raw = result.getText().replace(/\D/g, '');
+        if (/^\d{8,14}$/.test(raw)) {
+          barcodeBusy = true;
+          stopBarcodeScan();
+          lookupBarcode(raw);
+        }
+      }
+      // err is normal between frames (NotFoundException) — ignore
+    });
+  } catch (e) {
+    $('#barcodeStatus').textContent = '⚠️ Live scanner unavailable (' + (e.message || e) + '). Type the barcode manually.';
+    stopBarcodeScan();
     $('#barcodeViewport').style.display = 'none';
     $('#barcodeFallback').style.display = 'block';
   }
@@ -10561,6 +10613,10 @@ function closeBarcodeModal() {
 
 function stopBarcodeScan() {
   if (barcodeScanLoopId) { cancelAnimationFrame(barcodeScanLoopId); barcodeScanLoopId = null; }
+  if (zxingReader) {
+    try { zxingReader.reset(); } catch (e) { /* reader already stopped */ }
+    zxingReader = null;
+  }
   if (barcodeStream) {
     barcodeStream.getTracks().forEach(t => t.stop());
     barcodeStream = null;
