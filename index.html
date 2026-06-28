@@ -1475,6 +1475,7 @@ select {
         <label>Quick period</label>
         <div class="period-pills" id="progressPills">
           <button class="pill" data-days="0">Today</button>
+          <button class="pill" data-days="yesterday">Yesterday</button>
           <button class="pill active" data-days="7">7 days</button>
           <button class="pill" data-days="14">14 days</button>
           <button class="pill" data-days="30">30 days</button>
@@ -1680,6 +1681,7 @@ select {
         <label>Quick period</label>
         <div class="period-pills" id="cardioHistoryPills">
           <button class="pill active" data-days="0">Today</button>
+          <button class="pill" data-days="yesterday">Yesterday</button>
           <button class="pill" data-days="7">7 days</button>
           <button class="pill" data-days="14">14 days</button>
           <button class="pill" data-days="30">30 days</button>
@@ -1721,6 +1723,7 @@ select {
             <label style="margin-top:12px;">Quick period</label>
             <div class="period-pills" id="cardioProgressPills">
               <button class="pill" data-days="0">Today</button>
+              <button class="pill" data-days="yesterday">Yesterday</button>
               <button class="pill active" data-days="7">7 days</button>
               <button class="pill" data-days="14">14 days</button>
               <button class="pill" data-days="30">30 days</button>
@@ -1851,6 +1854,7 @@ select {
       <label>Period</label>
       <div class="period-pills" id="exportPills">
         <button class="pill" data-days="0">Today</button>
+        <button class="pill" data-days="yesterday">Yesterday</button>
         <button class="pill" data-days="7">7 days</button>
         <button class="pill" data-days="14">14 days</button>
         <button class="pill" data-days="30">30 days</button>
@@ -5405,6 +5409,13 @@ function todayISO() {
   return new Date(d - tz).toISOString().slice(0, 10);
 }
 
+function yesterdayISO() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  const tz = d.getTimezoneOffset() * 60000;
+  return new Date(d - tz).toISOString().slice(0, 10);
+}
+
 function daysAgoISO(days) {
   // We want a period that INCLUDES today. So:
   //   days=0 → today only         (from = today)
@@ -6428,14 +6439,9 @@ function setHistoryRange(days) {
     $('#historyFrom').value = '';
     $('#historyTo').value = '';
   } else if (days === 'yesterday') {
-    // daysAgoISO uses an offset formula (days-1) so daysAgoISO(1) = today.
-    // Compute yesterday directly with the same timezone logic as todayISO().
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    const tz = d.getTimezoneOffset() * 60000;
-    const yest = new Date(d - tz).toISOString().slice(0, 10);
-    $('#historyFrom').value = yest;
-    $('#historyTo').value = yest;
+    const y = yesterdayISO();
+    $('#historyFrom').value = y;
+    $('#historyTo').value = y;
   } else {
     $('#historyFrom').value = daysAgoISO(+days);
     $('#historyTo').value = todayISO();
@@ -6970,6 +6976,10 @@ function setProgressRange(days) {
   if (days === 'all') {
     $('#progressFrom').value = '';
     $('#progressTo').value = '';
+  } else if (days === 'yesterday') {
+    const y = yesterdayISO();
+    $('#progressFrom').value = y;
+    $('#progressTo').value = y;
   } else {
     $('#progressFrom').value = daysAgoISO(+days);
     $('#progressTo').value = todayISO();
@@ -7694,6 +7704,7 @@ function getExportRange() {
 }
 function setExportRange(days) {
   if (days === 'all') { $('#exportFrom').value = ''; $('#exportTo').value = ''; }
+  else if (days === 'yesterday') { const y = yesterdayISO(); $('#exportFrom').value = y; $('#exportTo').value = y; }
   else { $('#exportFrom').value = daysAgoISO(+days); $('#exportTo').value = todayISO(); }
 }
 
@@ -9196,6 +9207,7 @@ function getCardioHistoryRange() {
 
 function setCardioHistoryRange(days) {
   if (days === 'all') { $('#cardioHistoryFrom').value = ''; $('#cardioHistoryTo').value = ''; }
+  else if (days === 'yesterday') { const y = yesterdayISO(); $('#cardioHistoryFrom').value = y; $('#cardioHistoryTo').value = y; }
   else { $('#cardioHistoryFrom').value = daysAgoISO(+days); $('#cardioHistoryTo').value = todayISO(); }
 }
 
@@ -9347,6 +9359,7 @@ function getCardioProgressRange() {
 
 function setCardioProgressRange(days) {
   if (days === 'all') { $('#cardioProgressFrom').value = ''; $('#cardioProgressTo').value = ''; }
+  else if (days === 'yesterday') { const y = yesterdayISO(); $('#cardioProgressFrom').value = y; $('#cardioProgressTo').value = y; }
   else { $('#cardioProgressFrom').value = daysAgoISO(+days); $('#cardioProgressTo').value = todayISO(); }
 }
 
