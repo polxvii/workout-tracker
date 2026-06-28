@@ -1819,6 +1819,14 @@ select {
   <!-- SETTINGS VIEW (offline cache + data management) -->
   <section class="view" id="view-settings">
 
+    <!-- NUTRITION TARGETS -->
+    <div class="card">
+      <div class="card-title">Nutrition targets</div>
+      <div style="font-size:13px; color:var(--text-dim); margin-bottom:10px;">Daily intake goals used for the Nutrition tab progress bars.</div>
+      <div id="settingsTargetsSummary" style="font-size:13px; color:var(--text); margin-bottom:12px; padding:10px; background:var(--surface-2); border-radius:6px;">—</div>
+      <button class="btn btn-secondary" id="openTargetsBtn" type="button" style="width:100%;">⚙️ Edit / Calculate targets</button>
+    </div>
+
     <!-- EXPORT -->
     <div class="card">
       <div class="card-title">Export</div>
@@ -1869,14 +1877,6 @@ select {
       <div style="font-size:13px; color:var(--text-dim); margin-bottom:12px;">Pick a CSV or JSON file. The app auto-detects the format. Importing replaces all current data — export first if you want to merge.</div>
       <button class="btn btn-secondary" id="importBtn">📤 Choose file to import</button>
       <input type="file" id="importFile" accept=".json,.csv,text/csv,application/json" style="display:none;">
-    </div>
-
-    <!-- NUTRITION TARGETS -->
-    <div class="card">
-      <div class="card-title">Nutrition targets</div>
-      <div style="font-size:13px; color:var(--text-dim); margin-bottom:10px;">Daily intake goals used for the Nutrition tab progress bars.</div>
-      <div id="settingsTargetsSummary" style="font-size:13px; color:var(--text); margin-bottom:12px; padding:10px; background:var(--surface-2); border-radius:6px;">—</div>
-      <button class="btn btn-secondary" id="openTargetsBtn" type="button" style="width:100%;">⚙️ Edit / Calculate targets</button>
     </div>
 
     <!-- ACCOUNT -->
@@ -2100,26 +2100,43 @@ select {
 
     <div style="border-top:1px solid var(--border); padding-top:12px; margin-bottom:8px; font-size:13px; font-weight:600; color:var(--text-dim);">Daily targets</div>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-      <div class="form-group">
-        <label for="tgtCalories">Calories (kcal)</label>
-        <input type="number" id="tgtCalories" inputmode="numeric" min="0" step="10">
-      </div>
-      <div class="form-group">
-        <label for="tgtProtein">Protein (g)</label>
-        <input type="number" id="tgtProtein" inputmode="numeric" min="0" step="1">
-      </div>
+    <div class="form-group">
+      <label for="tgtCalories">Calories (kcal)</label>
+      <input type="number" id="tgtCalories" inputmode="numeric" min="0" step="10">
     </div>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-      <div class="form-group">
-        <label for="tgtCarbs">Carbs (g)</label>
-        <input type="number" id="tgtCarbs" inputmode="numeric" min="0" step="1">
-      </div>
-      <div class="form-group">
-        <label for="tgtFat">Fat (g)</label>
-        <input type="number" id="tgtFat" inputmode="numeric" min="0" step="1">
-      </div>
+
+    <!-- Macro presets — one tap to apply common splits -->
+    <label style="margin-bottom:4px;">Macro presets</label>
+    <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+      <button type="button" class="pill tgt-preset" data-preset="balanced">Balanced 40/30/30</button>
+      <button type="button" class="pill tgt-preset" data-preset="highprot">High-Protein 40/40/20</button>
+      <button type="button" class="pill tgt-preset" data-preset="lowcarb">Low-Carb 25/35/40</button>
+      <button type="button" class="pill tgt-preset" data-preset="keto">Keto 5/25/70</button>
     </div>
+
+    <!-- Macro grid: grams ↔ % two-way binding -->
+    <label style="margin-bottom:4px;">Macros (edit grams OR % — the other updates)</label>
+    <div style="display:grid; grid-template-columns:auto 1fr auto 1fr auto; gap:6px 8px; align-items:center; margin-bottom:6px; font-size:12px;">
+      <div style="color:var(--text-dim);">Protein</div>
+      <input type="number" id="tgtProtein" inputmode="numeric" min="0" step="1" style="text-align:right;">
+      <div style="color:var(--text-faint);">g</div>
+      <input type="number" id="tgtProteinPct" inputmode="numeric" min="0" max="100" step="1" style="text-align:right;">
+      <div style="color:var(--text-faint);">%</div>
+
+      <div style="color:var(--text-dim);">Carbs</div>
+      <input type="number" id="tgtCarbs" inputmode="numeric" min="0" step="1" style="text-align:right;">
+      <div style="color:var(--text-faint);">g</div>
+      <input type="number" id="tgtCarbsPct" inputmode="numeric" min="0" max="100" step="1" style="text-align:right;">
+      <div style="color:var(--text-faint);">%</div>
+
+      <div style="color:var(--text-dim);">Fat</div>
+      <input type="number" id="tgtFat" inputmode="numeric" min="0" step="1" style="text-align:right;">
+      <div style="color:var(--text-faint);">g</div>
+      <input type="number" id="tgtFatPct" inputmode="numeric" min="0" max="100" step="1" style="text-align:right;">
+      <div style="color:var(--text-faint);">%</div>
+    </div>
+    <div id="tgtRatioWarn" style="font-size:11px; margin-bottom:10px; text-align:right;">Total: <span id="tgtRatioSum">100</span>%</div>
+
     <div class="form-group">
       <label for="tgtFiber">Fiber (g)</label>
       <input type="number" id="tgtFiber" inputmode="numeric" min="0" step="1">
@@ -10132,8 +10149,66 @@ function openTargetsModal() {
   $('#tgtCarbs').value    = t.carbs;
   $('#tgtFat').value      = t.fat;
   $('#tgtFiber').value    = t.fiber;
+  syncPctFromGrams();
   $('#nutritionTargetsModal').style.display = 'block';
   document.body.style.overflow = 'hidden';
+}
+
+// ---- Macro ratio binding ----
+// kcal-per-gram: protein/carbs = 4, fat = 9
+// %  = (grams × kcalPerGram) / totalCalories × 100
+// g  = (% / 100 × totalCalories) / kcalPerGram
+function _kcal() { return parseFloat($('#tgtCalories').value) || 0; }
+
+function syncPctFromGrams() {
+  const cals = _kcal(); if (cals <= 0) return;
+  const p = parseFloat($('#tgtProtein').value) || 0;
+  const c = parseFloat($('#tgtCarbs').value)   || 0;
+  const f = parseFloat($('#tgtFat').value)     || 0;
+  $('#tgtProteinPct').value = Math.round(p * 4 / cals * 100);
+  $('#tgtCarbsPct').value   = Math.round(c * 4 / cals * 100);
+  $('#tgtFatPct').value     = Math.round(f * 9 / cals * 100);
+  updateRatioSum();
+}
+
+function syncGramsFromPct(which) {
+  const cals = _kcal(); if (cals <= 0) return;
+  const id  = '#tgt' + which;
+  const pid = id + 'Pct';
+  const kcalPerG = (which === 'Fat') ? 9 : 4;
+  const pct = parseFloat($(pid).value) || 0;
+  $(id).value = Math.round((pct / 100) * cals / kcalPerG);
+  updateRatioSum();
+}
+
+function updateRatioSum() {
+  const sum = (parseFloat($('#tgtProteinPct').value) || 0)
+            + (parseFloat($('#tgtCarbsPct').value)   || 0)
+            + (parseFloat($('#tgtFatPct').value)     || 0);
+  const el = $('#tgtRatioSum');
+  const wrap = $('#tgtRatioWarn');
+  if (!el || !wrap) return;
+  el.textContent = sum;
+  const ok = sum >= 99 && sum <= 101;
+  wrap.style.color = ok ? 'var(--success)' : 'var(--danger)';
+  wrap.title = ok ? 'Macros add up to ~100% of calories.' : 'Macros do not sum to 100% — calories or grams may be off.';
+}
+
+// Apply a preset ratio (P/C/F) keeping current Calories. Updates both g and %.
+const MACRO_PRESETS = {
+  balanced: { p: 30, c: 40, f: 30 },
+  highprot: { p: 40, c: 40, f: 20 },
+  lowcarb:  { p: 35, c: 25, f: 40 },
+  keto:     { p: 25, c: 5,  f: 70 },
+};
+function applyMacroPreset(name) {
+  const r = MACRO_PRESETS[name]; if (!r) return;
+  $('#tgtProteinPct').value = r.p;
+  $('#tgtCarbsPct').value   = r.c;
+  $('#tgtFatPct').value     = r.f;
+  syncGramsFromPct('Protein');
+  syncGramsFromPct('Carbs');
+  syncGramsFromPct('Fat');
 }
 
 function closeTargetsModal() {
@@ -10183,6 +10258,7 @@ function recalcTargetsFromUI() {
   $('#tgtCarbs').value    = r.carbs;
   $('#tgtFat').value      = r.fat;
   $('#tgtFiber').value    = r.fiber;
+  syncPctFromGrams();
   showToast('Calculated: ' + r.calories + ' kcal · ' + r.protein + 'P / ' + r.carbs + 'C / ' + r.fat + 'F');
 }
 
@@ -11327,6 +11403,24 @@ async function init() {
   $('#tgtCancelBtn').addEventListener('click', closeTargetsModal);
   $('#tgtCalcBtn').addEventListener('click', recalcTargetsFromUI);
   $('#tgtSaveBtn').addEventListener('click', saveTargetsFromUI);
+
+  // Calorie change → recompute %s from existing gram values
+  $('#tgtCalories').addEventListener('input', syncPctFromGrams);
+
+  // Gram input → update its corresponding % (and the sum warning)
+  $('#tgtProtein').addEventListener('input', syncPctFromGrams);
+  $('#tgtCarbs').addEventListener('input',   syncPctFromGrams);
+  $('#tgtFat').addEventListener('input',     syncPctFromGrams);
+
+  // Percent input → update its corresponding grams
+  $('#tgtProteinPct').addEventListener('input', () => syncGramsFromPct('Protein'));
+  $('#tgtCarbsPct').addEventListener('input',   () => syncGramsFromPct('Carbs'));
+  $('#tgtFatPct').addEventListener('input',     () => syncGramsFromPct('Fat'));
+
+  // Preset chips
+  document.querySelectorAll('.tgt-preset').forEach(btn => {
+    btn.addEventListener('click', () => applyMacroPreset(btn.dataset.preset));
+  });
 
   // Initial render of the Settings summary line
   updateSettingsTargetsSummary();
