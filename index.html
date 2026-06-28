@@ -10730,9 +10730,35 @@ function renderBarcodeResult(code, p) {
     fat:     numOrZero(n['fat_100g']),
   };
   if (per100.kcal === 0 && per100.protein === 0 && per100.carbs === 0 && per100.fat === 0) {
+    // Product exists in OFF but no macro data on file — same handoff as "not found"
     $('#barcodeStatus').textContent = '⚠️ Product found but no macro data on file.';
     $('#barcodeResult').style.display = 'block';
-    $('#barcodeResult').innerHTML = `<div class="log-entry" style="text-align:center; font-size:13px;">This entry in OFF doesn't have macros. Enter manually instead.</div>`;
+    const brandStr = Array.isArray(p.brands) ? p.brands[0] : (typeof p.brands === 'string' ? p.brands.split(',')[0].trim() : '');
+    const knownName = (p.product_name_en || p.product_name_th || p.product_name || '');
+    const suggestion = (knownName ? knownName + ' ' : '') + (brandStr || '');
+    $('#barcodeResult').innerHTML = `
+      <div class="log-entry">
+        <div style="font-size:13px; margin-bottom:6px; font-weight:600;">No nutrition data on file</div>
+        <div style="font-size:11px; color:var(--text-faint); margin-bottom:10px; line-height:1.4;">OFF has this product${knownName ? ' (' + escapeHtml(knownName) + ')' : ''} but no macros. Search AI by name, or enter manually.</div>
+        <input type="text" id="barcodeFallbackName" placeholder="Product name on the package" autocomplete="off" value="${escapeHtml(suggestion.trim())}" style="width:100%; padding:12px; font-size:16px; min-height:44px; margin-bottom:10px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <button type="button" class="btn btn-secondary" id="barcodeRescanBtn">↻ Scan again</button>
+          <button type="button" class="btn btn-primary" id="barcodeSearchAiBtn">🔎 Search with AI</button>
+        </div>
+      </div>`;
+    $('#barcodeRescanBtn').addEventListener('click', () => { openBarcodeModal(); });
+    const nameInp = $('#barcodeFallbackName');
+    const trigger = () => {
+      const q = (nameInp.value || '').trim();
+      if (q.length < 2) { showToast('Type the product name first', 'error'); nameInp.focus(); return; }
+      closeBarcodeModal();
+      openSearchModal();
+      $('#nutritionSearchInput').value = q;
+      runFoodSearch(q);
+    };
+    $('#barcodeSearchAiBtn').addEventListener('click', trigger);
+    nameInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); trigger(); } });
+    setTimeout(() => nameInp.focus(), 80);
     return;
   }
 
