@@ -13,7 +13,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Workout Tracker</title>
-<meta name="app-version" content="1.10">
+<meta name="app-version" content="1.12.5">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
@@ -1265,7 +1265,7 @@ select {
         Your data is private. Only you can access it.
       </div>
       <div style="text-align:center; font-size:10px; color:var(--text-faint); margin-top:6px; opacity:0.7;">
-        v1.10
+        v1.12.5
       </div>
     </div>
   </div>
@@ -1749,7 +1749,7 @@ select {
     </div>
   </section>
 
-  <!-- NUTRITION VIEW (manual entry — v1.10 foundation; photo/barcode/search land later) -->
+  <!-- NUTRITION VIEW (manual entry — v1.12.5 foundation; photo/barcode/search land later) -->
   <section class="view" id="view-nutrition">
     <div class="card">
       <div class="card-title">Nutrition</div>
@@ -1768,7 +1768,7 @@ select {
         <!-- Daily summary card (totals vs targets) -->
         <div id="nutritionDailySummary" style="margin-bottom:12px;"></div>
 
-        <!-- Entry method picker (v1.10 = manual only; others ghost-disabled to signal what's coming) -->
+        <!-- Entry method picker (v1.12.5 = manual only; others ghost-disabled to signal what's coming) -->
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
           <button class="btn btn-primary" id="nutritionAddManualBtn" style="display:flex; flex-direction:column; gap:4px; padding:14px 6px; height:auto; line-height:1.2;">
             <span style="font-size:22px;">✍️</span>
@@ -1911,7 +1911,7 @@ select {
 
     <!-- VERSION FOOTER -->
     <div style="text-align:center; padding:16px 0; font-size:11px; color:var(--text-faint);">
-      Workout Tracker v1.10
+      Workout Tracker v1.12.5
     </div>
 
   </section>
@@ -10996,7 +10996,7 @@ function computeTargetsFromInputs(sex, age, heightCm, weightKg, activity, goal) 
     'maintain': 0,
     'gain0.25': 275,
     'gain0.5':  550,
-    // Legacy values from v1.10 first release — map to closest new rate
+    // Legacy values from v1.12.5 first release — map to closest new rate
     'lose':     -550,
     'gain':     275,
   }[goal] || 0;
