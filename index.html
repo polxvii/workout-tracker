@@ -1782,9 +1782,9 @@ select {
             <span style="font-size:22px;">🔎</span>
             <span style="font-weight:600; font-size:13px;">Search</span>
           </button>
-          <button class="btn btn-secondary" id="nutritionAddBarcodeBtn" disabled style="display:flex; flex-direction:column; gap:4px; padding:14px 6px; height:auto; line-height:1.2; opacity:0.55;">
+          <button class="btn btn-primary" id="nutritionAddBarcodeBtn" style="display:flex; flex-direction:column; gap:4px; padding:14px 6px; height:auto; line-height:1.2;">
             <span style="font-size:22px;">📦</span>
-            <span style="font-weight:600; font-size:13px;">Barcode <span style="font-size:10px; color:var(--text-faint);">(soon)</span></span>
+            <span style="font-weight:600; font-size:13px;">Barcode</span>
           </button>
         </div>
 
@@ -2024,6 +2024,44 @@ select {
       <span style="background:#10b981;color:#fff;padding:1px 5px;border-radius:3px;font-weight:600;font-size:9px;">DB</span> = real label data (Open Food Facts) ·
       <span style="background:#6366f1;color:#fff;padding:1px 5px;border-radius:3px;font-weight:600;font-size:9px;">AI</span> = Llama estimate<br>
       Tip: for branded products, try the English name (e.g. "taro", "dna milk").
+    </div>
+  </div>
+</div>
+
+<!-- NUTRITION BARCODE SCANNER MODAL (v1.12 — OFF lookup) -->
+<div id="nutritionBarcodeModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:1002; padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); max-width:480px; margin:20px auto; padding:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div style="font-weight:600; font-size:16px;">📦 Scan barcode</div>
+      <button id="barcodeClose" type="button" style="background:transparent; border:none; color:var(--text-dim); font-size:24px; cursor:pointer; padding:4px 10px;">×</button>
+    </div>
+
+    <div id="barcodeStatus" style="font-size:12px; color:var(--text-dim); margin-bottom:8px; min-height:18px;">Point your camera at a product barcode</div>
+
+    <!-- Camera viewport with scan-line overlay -->
+    <div id="barcodeViewport" style="position:relative; background:#000; border-radius:8px; overflow:hidden; aspect-ratio:4/3; margin-bottom:10px;">
+      <video id="barcodeVideo" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover; display:block;"></video>
+      <!-- Centered framing guide -->
+      <div style="position:absolute; inset:0; pointer-events:none; display:flex; align-items:center; justify-content:center;">
+        <div style="width:80%; height:30%; border:2px solid rgba(255,255,255,0.6); border-radius:8px; box-shadow:0 0 0 9999px rgba(0,0,0,0.35);"></div>
+      </div>
+    </div>
+
+    <!-- Fallback: manual barcode entry if camera/detector unavailable -->
+    <div id="barcodeFallback" style="display:none; margin-bottom:10px;">
+      <label style="font-size:11px;">Enter barcode digits manually</label>
+      <div style="display:flex; gap:6px;">
+        <input type="text" id="barcodeManualInput" inputmode="numeric" pattern="[0-9]*" placeholder="8 to 14 digits" autocomplete="off" style="flex:1;">
+        <button type="button" class="btn btn-primary" id="barcodeManualLookupBtn" style="padding:8px 14px;">Look up</button>
+      </div>
+    </div>
+
+    <!-- Result block (shown after a successful lookup) -->
+    <div id="barcodeResult" style="display:none;"></div>
+
+    <div style="font-size:11px; color:var(--text-faint); margin-top:10px; text-align:center; line-height:1.5;">
+      Camera needs permission. Looks up <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener" style="color:var(--text-dim);">Open Food Facts</a>.<br>
+      Not every product is in the database — many Thai products are, give it a try.
     </div>
   </div>
 </div>
@@ -10458,6 +10496,246 @@ function renderSearchResults() {
     });
 }
 
+// ============================================================
+// NUTRITION BARCODE SCANNER (v1.12 — OFF lookup)
+// ============================================================
+// iOS Safari 17+, Chrome, Edge support window.BarcodeDetector natively.
+// Older browsers fall back to manual barcode entry.
+let barcodeStream = null;        // active MediaStream so we can stop tracks on close
+let barcodeScanLoopId = null;    // requestAnimationFrame handle for the detection loop
+let barcodeDetectorInstance = null;
+let barcodeBusy = false;         // suppresses re-triggering while a lookup is in flight
+
+function isBarcodeDetectorSupported() {
+  return typeof window.BarcodeDetector === 'function';
+}
+
+async function openBarcodeModal() {
+  $('#nutritionBarcodeModal').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  $('#barcodeResult').style.display = 'none';
+  $('#barcodeResult').innerHTML = '';
+  $('#barcodeFallback').style.display = 'none';
+  $('#barcodeManualInput').value = '';
+  barcodeBusy = false;
+
+  if (!isBarcodeDetectorSupported()) {
+    // Older browser: skip camera entirely, show manual entry
+    $('#barcodeStatus').textContent = '⚠️ Live scanner not supported on this browser. Type the barcode digits below.';
+    $('#barcodeViewport').style.display = 'none';
+    $('#barcodeFallback').style.display = 'block';
+    return;
+  }
+
+  $('#barcodeViewport').style.display = 'block';
+  $('#barcodeStatus').textContent = 'Starting camera…';
+
+  try {
+    barcodeStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    });
+    const video = $('#barcodeVideo');
+    video.srcObject = barcodeStream;
+    await video.play();
+
+    barcodeDetectorInstance = new BarcodeDetector({
+      formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'],
+    });
+
+    $('#barcodeStatus').textContent = 'Point the camera at a barcode…';
+    scanBarcodeLoop();
+  } catch (err) {
+    // Camera denied or unavailable — fall back to manual entry
+    $('#barcodeStatus').textContent = '⚠️ Camera unavailable (' + (err.message || err.name) + '). Type the barcode manually.';
+    $('#barcodeViewport').style.display = 'none';
+    $('#barcodeFallback').style.display = 'block';
+  }
+}
+
+function closeBarcodeModal() {
+  $('#nutritionBarcodeModal').style.display = 'none';
+  document.body.style.overflow = '';
+  stopBarcodeScan();
+}
+
+function stopBarcodeScan() {
+  if (barcodeScanLoopId) { cancelAnimationFrame(barcodeScanLoopId); barcodeScanLoopId = null; }
+  if (barcodeStream) {
+    barcodeStream.getTracks().forEach(t => t.stop());
+    barcodeStream = null;
+  }
+  const v = $('#barcodeVideo');
+  if (v) v.srcObject = null;
+}
+
+async function scanBarcodeLoop() {
+  if (!barcodeDetectorInstance || !barcodeStream || barcodeBusy) return;
+  const video = $('#barcodeVideo');
+  if (video && video.readyState >= 2) {  // HAVE_CURRENT_DATA
+    try {
+      const codes = await barcodeDetectorInstance.detect(video);
+      if (codes && codes.length > 0) {
+        const raw = codes[0].rawValue.replace(/\D/g, '');
+        if (/^\d{8,14}$/.test(raw)) {
+          barcodeBusy = true;
+          stopBarcodeScan();
+          await lookupBarcode(raw);
+          return;
+        }
+      }
+    } catch (e) {
+      // Detection errors are normal between frames — keep looping
+    }
+  }
+  barcodeScanLoopId = requestAnimationFrame(scanBarcodeLoop);
+}
+
+async function lookupBarcode(code) {
+  $('#barcodeStatus').textContent = '🔎 Looking up barcode ' + code + '…';
+  $('#barcodeResult').style.display = 'none';
+
+  try {
+    const fields = 'product_name,product_name_en,product_name_th,brands,quantity,nutriments,image_url,image_thumb_url';
+    const url = 'https://world.openfoodfacts.org/api/v2/product/' + code + '.json?fields=' + fields;
+    const c = new AbortController();
+    const tid = setTimeout(() => c.abort(), 8000);
+    const res = await fetch(url, { signal: c.signal });
+    clearTimeout(tid);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    if (data.status !== 1 || !data.product) {
+      $('#barcodeStatus').textContent = '❌ Barcode ' + code + ' not found in database.';
+      $('#barcodeResult').style.display = 'block';
+      $('#barcodeResult').innerHTML = `
+        <div class="log-entry" style="text-align:center;">
+          <div style="font-size:13px; margin-bottom:8px;">This product isn't in Open Food Facts yet.</div>
+          <div style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">You can enter it manually — open the Manual tile after closing this.</div>
+          <button type="button" class="btn btn-secondary" id="barcodeRescanBtn">📦 Scan again</button>
+        </div>`;
+      $('#barcodeRescanBtn').addEventListener('click', () => { openBarcodeModal(); });
+      return;
+    }
+
+    renderBarcodeResult(code, data.product);
+  } catch (err) {
+    $('#barcodeStatus').textContent = '⚠ Lookup failed: ' + (err.message || err);
+    $('#barcodeResult').style.display = 'block';
+    $('#barcodeResult').innerHTML = `
+      <div class="log-entry" style="text-align:center;">
+        <button type="button" class="btn btn-secondary" id="barcodeRescanBtn">📦 Try again</button>
+      </div>`;
+    $('#barcodeRescanBtn').addEventListener('click', () => { openBarcodeModal(); });
+  }
+}
+
+function renderBarcodeResult(code, p) {
+  const n = p.nutriments || {};
+  const numOrZero = (v) => typeof v === 'number' && isFinite(v) ? v : 0;
+  const per100 = {
+    kcal:    Math.round(numOrZero(n['energy-kcal_100g'] != null ? n['energy-kcal_100g'] : n['energy-kcal'])),
+    protein: numOrZero(n['proteins_100g']),
+    carbs:   numOrZero(n['carbohydrates_100g']),
+    fat:     numOrZero(n['fat_100g']),
+  };
+  if (per100.kcal === 0 && per100.protein === 0 && per100.carbs === 0 && per100.fat === 0) {
+    $('#barcodeStatus').textContent = '⚠️ Product found but no macro data on file.';
+    $('#barcodeResult').style.display = 'block';
+    $('#barcodeResult').innerHTML = `<div class="log-entry" style="text-align:center; font-size:13px;">This entry in OFF doesn't have macros. Enter manually instead.</div>`;
+    return;
+  }
+
+  const brand = Array.isArray(p.brands)
+    ? p.brands[0]
+    : (typeof p.brands === 'string' ? p.brands.split(',')[0].trim() : '');
+  const name = (p.product_name_en || p.product_name_th || p.product_name || 'Unnamed')
+             + (brand ? ' (' + brand + ')' : '');
+  const image = p.image_url || p.image_thumb_url || '';
+  const qty   = p.quantity || '';
+
+  $('#barcodeStatus').textContent = '✓ Found — set portion and add to log';
+  $('#barcodeResult').style.display = 'block';
+  $('#barcodeResult').innerHTML = `
+    <div class="log-entry" style="margin-bottom:8px;">
+      <div style="display:flex; gap:10px; align-items:flex-start; margin-bottom:10px;">
+        ${image
+          ? `<img src="${escapeHtml(image)}" alt="" style="width:64px; height:64px; object-fit:cover; border-radius:6px; flex-shrink:0; background:#fff;">`
+          : `<div style="width:64px; height:64px; border-radius:6px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:28px;">📦</div>`}
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:600; font-size:14px;">${escapeHtml(name)}<span style="font-size:9px; padding:1px 5px; background:#10b981; color:#fff; border-radius:3px; font-weight:600; vertical-align:middle; margin-left:6px;">DB</span></div>
+          ${qty ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">Pack: ${escapeHtml(qty)}</div>` : ''}
+          <div style="font-size:10px; color:var(--text-faint); margin-top:2px;">
+            per 100g: <strong>${per100.kcal}</strong> kcal · C ${per100.carbs.toFixed(1)} · P ${per100.protein.toFixed(1)} · F ${per100.fat.toFixed(1)}
+          </div>
+          <div style="font-size:10px; color:var(--text-faint); margin-top:2px;">Barcode: ${escapeHtml(code)}</div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px;">
+        <div>
+          <label style="font-size:11px;">Portion (g)</label>
+          <input type="number" id="barcodePortionG" inputmode="numeric" min="1" step="1" value="100" style="width:100%;">
+        </div>
+        <div>
+          <label style="font-size:11px;">Meal</label>
+          <select id="barcodeMeal">
+            <option value="breakfast">🌅 Breakfast</option>
+            <option value="lunch">☀️ Lunch</option>
+            <option value="dinner">🌙 Dinner</option>
+            <option value="snack">🍿 Snack</option>
+          </select>
+        </div>
+      </div>
+      <div id="barcodePreview" style="font-size:12px; color:var(--text-dim); margin-bottom:8px; padding:8px; background:var(--surface-2); border-radius:6px; font-variant-numeric:tabular-nums;"></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;">
+        <button type="button" class="btn btn-secondary" id="barcodeRescanBtn">↻ Scan</button>
+        <button type="button" class="btn btn-secondary" id="barcodeCancelBtn">Cancel</button>
+        <button type="button" class="btn btn-primary" id="barcodeAddBtn">✓ Add</button>
+      </div>
+    </div>`;
+
+  // Wire portion preview + actions
+  const portionInp = $('#barcodePortionG');
+  const mealSel    = $('#barcodeMeal');
+  const preview    = $('#barcodePreview');
+  mealSel.value = defaultMealForNow();
+
+  const recalcPreview = () => {
+    const g = parseFloat(portionInp.value) || 0;
+    const ratio = g / 100;
+    preview.innerHTML = `<strong>${Math.round(per100.kcal * ratio)}</strong> kcal · C ${(per100.carbs * ratio).toFixed(1)} · P ${(per100.protein * ratio).toFixed(1)} · F ${(per100.fat * ratio).toFixed(1)} · ${Math.round(g)}g`;
+  };
+  recalcPreview();
+  portionInp.addEventListener('input', recalcPreview);
+
+  $('#barcodeRescanBtn').addEventListener('click', () => openBarcodeModal());
+  $('#barcodeCancelBtn').addEventListener('click', closeBarcodeModal);
+  $('#barcodeAddBtn').addEventListener('click', () => {
+    const g = parseFloat(portionInp.value);
+    if (!g || g <= 0) { showToast('Enter a portion size', 'error'); portionInp.focus(); return; }
+    const ratio = g / 100;
+    state.nutritionLogs.push({
+      id: 'N' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      date: nutritionDate,
+      createdAt: new Date().toISOString(),
+      foodName: name + ' — ' + Math.round(g) + 'g',
+      meal: mealSel.value,
+      calories: Math.round(per100.kcal * ratio),
+      protein:  +(per100.protein * ratio).toFixed(1),
+      carbs:    +(per100.carbs   * ratio).toFixed(1),
+      fat:      +(per100.fat     * ratio).toFixed(1),
+      notes: '',
+      source: 'barcode',
+      barcode: code,
+    });
+    saveNutritionState();
+    closeBarcodeModal();
+    renderNutritionLog();
+    showToast('Added ' + Math.round(g) + 'g of ' + name.slice(0, 30));
+  });
+}
+
 // ---- Targets calculator ----
 function openTargetsModal() {
   const t = state.nutritionTargets;
@@ -11740,6 +12018,18 @@ async function init() {
       searchFilterMode = p.dataset.searchFilter;
       if (lastSearchItems.length) renderSearchResults();
     });
+  });
+
+  // Barcode scanner (v1.12)
+  $('#nutritionAddBarcodeBtn').addEventListener('click', openBarcodeModal);
+  $('#barcodeClose').addEventListener('click', closeBarcodeModal);
+  $('#barcodeManualLookupBtn').addEventListener('click', () => {
+    const raw = ($('#barcodeManualInput').value || '').replace(/\D/g, '');
+    if (!/^\d{8,14}$/.test(raw)) { showToast('Enter 8-14 digits', 'error'); return; }
+    lookupBarcode(raw);
+  });
+  $('#barcodeManualInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); $('#barcodeManualLookupBtn').click(); }
   });
 
   // Targets modal (opened from Settings)
