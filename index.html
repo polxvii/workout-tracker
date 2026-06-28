@@ -42,9 +42,20 @@ html, body {
   line-height: 1.5;
   -webkit-tap-highlight-color: transparent;
   font-size: 15px;
+  /* Belt-and-braces against accidental horizontal scroll. Any child
+     element that's wider than the viewport (e.g. native <input> with
+     a min-content size larger than its grid cell) is clipped instead
+     of pushing the whole page sideways. */
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 body { padding-bottom: 80px; }
+
+/* Inputs inside grids must be allowed to shrink below their default
+   min-content width, otherwise <input type="number"> forces ~150px
+   per column and a 5-col macro row blows past the viewport on phones. */
+input[type="number"], input[type="text"], input[type="search"], select { min-width: 0; max-width: 100%; }
 
 /* Header */
 .header {
