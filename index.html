@@ -1874,9 +1874,9 @@ select {
     <!-- NUTRITION TARGETS -->
     <div class="card">
       <div class="card-title">Nutrition targets</div>
-      <div style="font-size:13px; color:var(--text-dim); margin-bottom:10px;">Set your daily intake goals. Used to render progress bars in the Nutrition tab.</div>
+      <div style="font-size:13px; color:var(--text-dim); margin-bottom:10px;">Daily intake goals used for the Nutrition tab progress bars.</div>
       <div id="settingsTargetsSummary" style="font-size:13px; color:var(--text); margin-bottom:12px; padding:10px; background:var(--surface-2); border-radius:6px;">—</div>
-      <button class="btn btn-secondary" id="openTargetsBtn" type="button">⚙️ Edit targets / open calculator</button>
+      <button class="btn btn-secondary" id="openTargetsBtn" type="button" style="width:100%;">⚙️ Edit / Calculate targets</button>
     </div>
 
     <!-- ACCOUNT -->
@@ -2086,10 +2086,14 @@ select {
     <div class="form-group">
       <label for="tgtGoal">Goal</label>
       <select id="tgtGoal">
-        <option value="lose">Lose fat (–500 kcal)</option>
-        <option value="maintain">Maintain</option>
-        <option value="gain">Gain muscle (+300 kcal)</option>
+        <option value="lose1">🔻 Lose 1 kg/week — aggressive</option>
+        <option value="lose0.5">🔻 Lose 0.5 kg/week — recommended cut</option>
+        <option value="lose0.25">🔻 Lose 0.25 kg/week — lean cut</option>
+        <option value="maintain">➖ Maintain weight</option>
+        <option value="gain0.25">🔺 Gain 0.25 kg/week — lean bulk</option>
+        <option value="gain0.5">🔺 Gain 0.5 kg/week — faster bulk</option>
       </select>
+      <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">1 kg body fat ≈ 7,700 kcal — kcal adjustment is derived from your rate.</div>
     </div>
 
     <button class="btn btn-secondary" id="tgtCalcBtn" type="button" style="width:100%; margin-bottom:14px;">⚡ Calculate from my stats</button>
@@ -10144,7 +10148,19 @@ function computeTargetsFromInputs(sex, age, heightCm, weightKg, activity, goal) 
     : 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
   const mult = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very: 1.9 }[activity] || 1.55;
   const tdee = bmr * mult;
-  const goalAdj = { lose: -500, maintain: 0, gain: 300 }[goal] || 0;
+  // Goal -> daily kcal adjustment, derived from rate × 7700 kcal/kg ÷ 7 days.
+  // (e.g. lose 0.5 kg/wk = -3850 kcal/wk = -550 kcal/day)
+  const goalAdj = {
+    'lose1':    -1100,
+    'lose0.5':  -550,
+    'lose0.25': -275,
+    'maintain': 0,
+    'gain0.25': 275,
+    'gain0.5':  550,
+    // Legacy values from v1.10 first release — map to closest new rate
+    'lose':     -550,
+    'gain':     275,
+  }[goal] || 0;
   const calories = Math.round(tdee + goalAdj);
   // Macros: 2g/kg protein, 25% kcal from fat, rest carbs. Fiber 14g/1000kcal.
   const protein = Math.round(2 * weightKg);
@@ -10199,7 +10215,19 @@ function updateSettingsTargetsSummary() {
   const el = $('#settingsTargetsSummary');
   if (!el) return;
   const t = state.nutritionTargets;
-  el.innerHTML = `<strong>${t.calories}</strong> kcal · <strong>${t.protein}</strong>g protein · <strong>${t.carbs}</strong>g carbs · <strong>${t.fat}</strong>g fat · <strong>${t.fiber}</strong>g fiber`;
+  const cell = (label, val, unit) =>
+    `<div style="display:flex; justify-content:space-between; gap:8px;">
+       <span style="color:var(--text-dim)">${label}</span>
+       <span><strong>${val}</strong> ${unit}</span>
+     </div>`;
+  el.innerHTML = `
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; font-size:13px;">
+      ${cell('Calories', t.calories, 'kcal')}
+      ${cell('Protein',  t.protein,  'g')}
+      ${cell('Carbs',    t.carbs,    'g')}
+      ${cell('Fat',      t.fat,      'g')}
+      ${cell('Fiber',    t.fiber,    'g')}
+    </div>`;
 }
 
 // ============================================================
