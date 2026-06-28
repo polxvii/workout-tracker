@@ -2014,7 +2014,11 @@ select {
 
     <div id="nutritionSearchResults" style="max-height:55vh; overflow-y:auto;"></div>
 
-    <div style="font-size:11px; color:var(--text-faint); margin-top:10px; text-align:center; line-height:1.5;">AI-estimated macros (Llama 3.3 via Groq). Supports Thai dish names.<br>Values are approximate — adjust portion size for accuracy.</div>
+    <div style="font-size:11px; color:var(--text-faint); margin-top:10px; text-align:center; line-height:1.5;">
+      <span style="background:#10b981;color:#fff;padding:1px 5px;border-radius:3px;font-weight:600;font-size:9px;">DB</span> = real label data (Open Food Facts) ·
+      <span style="background:#6366f1;color:#fff;padding:1px 5px;border-radius:3px;font-weight:600;font-size:9px;">AI</span> = Llama estimate<br>
+      Tip: for branded products, try the English name (e.g. "taro", "dna milk").
+    </div>
   </div>
 </div>
 
@@ -10255,13 +10259,24 @@ async function runFoodSearch(query) {
       const p100 = it.per_100g;
       const defKcal = Math.round(p100.kcal * def.grams / 100);
 
+      // Source badge: OFF = real product data; AI = Llama estimate
+      const isOff = it.source === 'OFF';
+      const sourceBadge = isOff
+        ? `<span title="Open Food Facts — label-accurate" style="font-size:9px; padding:1px 5px; background:#10b981; color:#fff; border-radius:3px; font-weight:600; vertical-align:middle; margin-left:6px;">DB</span>`
+        : `<span title="AI estimate — approximate, adjust if needed" style="font-size:9px; padding:1px 5px; background:#6366f1; color:#fff; border-radius:3px; font-weight:600; vertical-align:middle; margin-left:6px;">AI</span>`;
+
+      // Thumbnail: use the OFF product photo when available, otherwise plate emoji
+      const thumb = (isOff && it.image)
+        ? `<img src="${escapeHtml(it.image)}" alt="" style="width:40px; height:40px; object-fit:cover; border-radius:6px; flex-shrink:0; background:#fff;" loading="lazy">`
+        : `<div style="width:40px; height:40px; border-radius:6px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:20px;">🍽</div>`;
+
       return `
         <div class="log-entry search-result" data-idx="${i}" style="cursor:pointer; margin-bottom:6px;">
           <div class="result-summary">
             <div style="display:flex; gap:10px; align-items:flex-start;">
-              <div style="width:40px; height:40px; border-radius:6px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:20px;">🍽</div>
+              ${thumb}
               <div style="flex:1; min-width:0;">
-                <div style="font-weight:600; font-size:14px;">${escapeHtml(it.name)}</div>
+                <div style="font-weight:600; font-size:14px;">${escapeHtml(it.name)}${sourceBadge}</div>
                 <div style="font-size:11px; color:var(--text-faint); margin-top:2px;">
                   1 ${escapeHtml(def.unit)} (${def.grams}g) ≈ <strong>${defKcal}</strong> kcal
                 </div>
