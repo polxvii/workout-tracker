@@ -10758,12 +10758,18 @@ function renderBarcodeResult(code, p) {
   }
   if (qty) packG = parseSizeToGrams(qty);
 
+  // Drink detection: if quantity/serving uses ml/L/cl, treat the product as a
+  // liquid. ml ≈ g for nutrition purposes (off by <3% for non-fat liquids).
+  const isLiquid = /(ml|cl|L)\b/i.test(qty || '') ||
+                   /(ml|cl|L)\b/i.test(p.serving_size || '');
+  const unitLabel = isLiquid ? 'ml' : 'g';
+
   const defaultG = servingG || packG || 100;
   // Quick-select buttons: only show options that we actually detected
   const quickPicks = [];
-  if (servingG) quickPicks.push({ label: '1 serving (' + servingG + 'g)', g: servingG });
-  if (packG && packG !== servingG) quickPicks.push({ label: 'Whole pack (' + packG + 'g)', g: packG });
-  quickPicks.push({ label: '100g', g: 100 });
+  if (servingG) quickPicks.push({ label: '1 serving (' + servingG + unitLabel + ')', g: servingG });
+  if (packG && packG !== servingG) quickPicks.push({ label: 'Whole pack (' + packG + unitLabel + ')', g: packG });
+  quickPicks.push({ label: '100' + unitLabel, g: 100 });
 
   $('#barcodeStatus').textContent = '✓ Found — set portion and add to log';
   $('#barcodeResult').style.display = 'block';
@@ -10777,7 +10783,7 @@ function renderBarcodeResult(code, p) {
           <div style="font-weight:600; font-size:14px;">${escapeHtml(name)}<span style="font-size:9px; padding:1px 5px; background:#10b981; color:#fff; border-radius:3px; font-weight:600; vertical-align:middle; margin-left:6px;">DB</span></div>
           ${qty ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">Pack: ${escapeHtml(qty)}</div>` : ''}
           <div style="font-size:10px; color:var(--text-faint); margin-top:2px;">
-            per 100g: <strong>${per100.kcal}</strong> kcal · C ${per100.carbs.toFixed(1)} · P ${per100.protein.toFixed(1)} · F ${per100.fat.toFixed(1)}
+            per 100${unitLabel}: <strong>${per100.kcal}</strong> kcal · C ${per100.carbs.toFixed(1)} · P ${per100.protein.toFixed(1)} · F ${per100.fat.toFixed(1)}
           </div>
           <div style="font-size:10px; color:var(--text-faint); margin-top:2px;">Barcode: ${escapeHtml(code)}</div>
         </div>
@@ -10792,7 +10798,7 @@ function renderBarcodeResult(code, p) {
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px;">
         <div>
-          <label style="font-size:11px;">Portion (g)</label>
+          <label style="font-size:11px;">Portion (${unitLabel})</label>
           <input type="number" id="barcodePortionG" inputmode="numeric" min="1" step="1" value="${defaultG}" style="width:100%;">
         </div>
         <div>
@@ -10822,7 +10828,7 @@ function renderBarcodeResult(code, p) {
   const recalcPreview = () => {
     const g = parseFloat(portionInp.value) || 0;
     const ratio = g / 100;
-    preview.innerHTML = `<strong>${Math.round(per100.kcal * ratio)}</strong> kcal · C ${(per100.carbs * ratio).toFixed(1)} · P ${(per100.protein * ratio).toFixed(1)} · F ${(per100.fat * ratio).toFixed(1)} · ${Math.round(g)}g`;
+    preview.innerHTML = `<strong>${Math.round(per100.kcal * ratio)}</strong> kcal · C ${(per100.carbs * ratio).toFixed(1)} · P ${(per100.protein * ratio).toFixed(1)} · F ${(per100.fat * ratio).toFixed(1)} · ${Math.round(g)}${unitLabel}`;
   };
   recalcPreview();
   portionInp.addEventListener('input', () => {
@@ -10851,7 +10857,7 @@ function renderBarcodeResult(code, p) {
       id: 'N' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
       date: nutritionDate,
       createdAt: new Date().toISOString(),
-      foodName: name + ' — ' + Math.round(g) + 'g',
+      foodName: name + ' — ' + Math.round(g) + unitLabel,
       meal: mealSel.value,
       calories: Math.round(per100.kcal * ratio),
       protein:  +(per100.protein * ratio).toFixed(1),
@@ -10864,7 +10870,7 @@ function renderBarcodeResult(code, p) {
     saveNutritionState();
     closeBarcodeModal();
     renderNutritionLog();
-    showToast('Added ' + Math.round(g) + 'g of ' + name.slice(0, 30));
+    showToast('Added ' + Math.round(g) + unitLabel + ' of ' + name.slice(0, 30));
   });
 }
 
