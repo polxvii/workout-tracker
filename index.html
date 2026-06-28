@@ -10236,18 +10236,19 @@ async function runFoodSearch(query) {
   if (searchAbortController) searchAbortController.abort();
   searchAbortController = new AbortController();
   searchTimedOut = false;
-  // 8s hard timeout — OFF can stall otherwise.
+  // 6s hard timeout — Search-a-licious is fast (~1-2s) when reachable.
   const myController = searchAbortController;
-  const timeoutId = setTimeout(() => { searchTimedOut = true; myController.abort(); }, 8000);
+  const timeoutId = setTimeout(() => { searchTimedOut = true; myController.abort(); }, 6000);
 
   try {
-    // OFF v2 API (the legacy cgi/search.pl is deprecated and very slow).
-    // sort_by=popularity_key brings well-scanned items first.
+    // Search-a-licious is OFF's new official search backend (Elasticsearch-backed).
+    // The legacy /cgi/search.pl and /api/v2/search endpoints are unreliable —
+    // both timed out during validation, this one returns in ~1s.
     const fields = 'product_name,product_name_en,product_name_th,generic_name,brands,nutriments,image_thumb_url,quantity';
-    const url = 'https://world.openfoodfacts.org/api/v2/search'
-      + '?search_terms=' + encodeURIComponent(query)
-      + '&fields=' + fields
-      + '&page_size=20&sort_by=popularity_key';
+    const url = 'https://search.openfoodfacts.org/search'
+      + '?q=' + encodeURIComponent(query)
+      + '&page_size=20'
+      + '&fields=' + fields;
     const res = await fetch(url, {
       signal: searchAbortController.signal,
       headers: { 'Accept': 'application/json' },
@@ -10255,10 +10256,11 @@ async function runFoodSearch(query) {
     clearTimeout(timeoutId);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    const items = (data.products || [])
+    // SAL returns hits[] (not products[]); brands is an array (not csv).
+    const items = (data.hits || [])
       .map(p => ({
         name: pickName(p),
-        brand: (p.brands || '').split(',')[0].trim(),
+        brand: Array.isArray(p.brands) ? (p.brands[0] || '') : (p.brands || '').split(',')[0].trim(),
         qty:   p.quantity || '',
         img:   p.image_thumb_url || '',
         ...nutrientsFromProduct(p),
