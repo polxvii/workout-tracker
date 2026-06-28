@@ -10180,6 +10180,7 @@ function deleteNutritionEntry(id) {
 // ============================================================
 let searchAbortController = null;
 let searchDebounceTimer = null;
+let searchTimedOut = false;  // distinguishes "user typed again" from "8s timeout"
 
 function openSearchModal() {
   $('#nutritionSearchModal').style.display = 'block';
@@ -10234,14 +10235,24 @@ async function runFoodSearch(query) {
 
   if (searchAbortController) searchAbortController.abort();
   searchAbortController = new AbortController();
+  searchTimedOut = false;
+  // 8s hard timeout — OFF can stall otherwise.
+  const myController = searchAbortController;
+  const timeoutId = setTimeout(() => { searchTimedOut = true; myController.abort(); }, 8000);
 
   try {
-    // OFF search endpoint. fields= keeps the payload small. page_size=20 is enough for browse.
-    const url = 'https://world.openfoodfacts.org/cgi/search.pl'
+    // OFF v2 API (the legacy cgi/search.pl is deprecated and very slow).
+    // sort_by=popularity_key brings well-scanned items first.
+    const fields = 'product_name,product_name_en,product_name_th,generic_name,brands,nutriments,image_thumb_url,quantity';
+    const url = 'https://world.openfoodfacts.org/api/v2/search'
       + '?search_terms=' + encodeURIComponent(query)
-      + '&search_simple=1&action=process&json=1&page_size=20'
-      + '&fields=product_name,product_name_en,product_name_th,generic_name,brands,nutriments,image_thumb_url,quantity';
-    const res = await fetch(url, { signal: searchAbortController.signal });
+      + '&fields=' + fields
+      + '&page_size=20&sort_by=popularity_key';
+    const res = await fetch(url, {
+      signal: searchAbortController.signal,
+      headers: { 'Accept': 'application/json' },
+    });
+    clearTimeout(timeoutId);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     const items = (data.products || [])
@@ -10352,7 +10363,14 @@ async function runFoodSearch(query) {
       });
     });
   } catch (e) {
-    if (e.name === 'AbortError') return; // user typed again, ignore
+    clearTimeout(timeoutId);
+    if (e.name === 'AbortError') {
+      if (searchTimedOut) {
+        status.textContent = '⏱ Search timed out (Open Food Facts slow). Try again, or use Manual entry.';
+      }
+      // else: user typed again, silently ignore
+      return;
+    }
     status.textContent = '⚠ Search failed: ' + (e.message || e);
   }
 }
