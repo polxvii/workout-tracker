@@ -2080,17 +2080,35 @@ select {
     <div class="form-group">
       <label for="tgtGoal">Goal</label>
       <select id="tgtGoal">
-        <option value="lose1">🔻 Lose 1 kg/week — aggressive</option>
-        <option value="lose0.5">🔻 Lose 0.5 kg/week — recommended cut</option>
-        <option value="lose0.25">🔻 Lose 0.25 kg/week — lean cut</option>
-        <option value="maintain">➖ Maintain weight</option>
-        <option value="gain0.25">🟢 Gain 0.25 kg/week — lean bulk</option>
-        <option value="gain0.5">🟢 Gain 0.5 kg/week — faster bulk</option>
+        <option value="lose1"    style="color:#dc2626">▼ Lose 1 kg/week — aggressive</option>
+        <option value="lose0.5"  style="color:#dc2626">▼ Lose 0.5 kg/week — recommended cut</option>
+        <option value="lose0.25" style="color:#dc2626">▼ Lose 0.25 kg/week — lean cut</option>
+        <option value="maintain" style="color:#9ca3af">— Maintain weight</option>
+        <option value="gain0.25" style="color:#10b981">▲ Gain 0.25 kg/week — lean bulk</option>
+        <option value="gain0.5"  style="color:#10b981">▲ Gain 0.5 kg/week — faster bulk</option>
       </select>
       <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">1 kg body fat ≈ 7,700 kcal — kcal adjustment is derived from your rate.</div>
     </div>
 
-    <button class="btn" id="tgtCalcBtn" type="button" style="width:100%; margin-bottom:14px; background:linear-gradient(135deg, #8b5cf6, #6366f1); color:#fff; border:none; font-weight:600; font-size:14px; padding:12px; box-shadow:0 2px 8px rgba(99,102,241,0.35);">🧮 Calculate targets from my stats</button>
+    <button class="btn" id="tgtCalcBtn" type="button" style="width:100%; margin-bottom:14px; background:linear-gradient(135deg, #8b5cf6, #6366f1); color:#fff; border:none; font-weight:600; font-size:14px; padding:12px; box-shadow:0 2px 8px rgba(99,102,241,0.35); display:inline-flex; align-items:center; justify-content:center; gap:10px;">
+      <svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+        <rect x="3.5" y="2" width="17" height="20" rx="3" fill="#2d2d2d" stroke="#1a1a1a" stroke-width="0.8"/>
+        <rect x="5.5" y="4" width="13" height="4" rx="1" fill="#cfd8dc" stroke="#1a1a1a" stroke-width="0.4"/>
+        <circle cx="7"  cy="11.5" r="1.2" fill="#e0e0e0"/>
+        <circle cx="10" cy="11.5" r="1.2" fill="#e0e0e0"/>
+        <circle cx="13" cy="11.5" r="1.2" fill="#e0e0e0"/>
+        <circle cx="16.5" cy="11.5" r="1.2" fill="#f59e0b"/>
+        <circle cx="7"  cy="15"   r="1.2" fill="#e0e0e0"/>
+        <circle cx="10" cy="15"   r="1.2" fill="#e0e0e0"/>
+        <circle cx="13" cy="15"   r="1.2" fill="#e0e0e0"/>
+        <circle cx="16.5" cy="15"   r="1.2" fill="#f59e0b"/>
+        <circle cx="7"  cy="18.5" r="1.2" fill="#e0e0e0"/>
+        <circle cx="10" cy="18.5" r="1.2" fill="#e0e0e0"/>
+        <circle cx="13" cy="18.5" r="1.2" fill="#e0e0e0"/>
+        <circle cx="16.5" cy="18.5" r="1.2" fill="#f59e0b"/>
+      </svg>
+      <span>Calculate targets from my stats</span>
+    </button>
 
     <div style="border-top:1px solid var(--border); padding-top:12px; margin-bottom:8px; font-size:13px; font-weight:600; color:var(--text-dim);">Daily targets</div>
 
