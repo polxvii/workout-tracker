@@ -2014,7 +2014,7 @@ select {
 
     <div id="nutritionSearchResults" style="max-height:55vh; overflow-y:auto;"></div>
 
-    <div style="font-size:11px; color:var(--text-faint); margin-top:10px; text-align:center;">Powered by <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener" style="color:var(--text-dim);">Open Food Facts</a> — community-maintained, may be incomplete for some local products.</div>
+    <div style="font-size:11px; color:var(--text-faint); margin-top:10px; text-align:center; line-height:1.5;">AI-estimated macros (Llama 3.3 via Groq). Supports Thai dish names.<br>Values are approximate — adjust portion size for accuracy.</div>
   </div>
 </div>
 
@@ -10198,29 +10198,9 @@ function closeSearchModal() {
   if (searchDebounceTimer)   { clearTimeout(searchDebounceTimer); searchDebounceTimer = null; }
 }
 
-// Pick the best display name from OFF's per-language fields. Prefer Thai → English → generic.
-function pickName(p) {
-  return (p.product_name_th && p.product_name_th.trim())
-      || (p.product_name_en && p.product_name_en.trim())
-      || (p.product_name    && p.product_name.trim())
-      || (p.generic_name    && p.generic_name.trim())
-      || 'Unnamed';
-}
-
-function nutrientsFromProduct(p) {
-  const n = p.nutriments || {};
-  // OFF stores per-100g values. Some products use *_100g, others *_serving — prefer 100g.
-  const num = (k, fallback) => {
-    const v = n[k];
-    return typeof v === 'number' && isFinite(v) ? v : fallback;
-  };
-  return {
-    calories: Math.round(num('energy-kcal_100g', num('energy-kcal', 0))),
-    protein:  num('proteins_100g',      0),
-    carbs:    num('carbohydrates_100g', 0),
-    fat:      num('fat_100g',           0),
-  };
-}
+// Worker proxy that calls Groq Llama 3.3 70B to estimate macros + serving sizes
+// from a free-text food query (English or Thai). Returns { foods: [...] }.
+const NUTRITION_WORKER_URL = 'https://workout-nutrition-proxy.pv-proj.workers.dev';
 
 async function runFoodSearch(query) {
   const status   = $('#nutritionSearchStatus');
@@ -10236,62 +10216,77 @@ async function runFoodSearch(query) {
   if (searchAbortController) searchAbortController.abort();
   searchAbortController = new AbortController();
   searchTimedOut = false;
-  // 6s hard timeout — Search-a-licious is fast (~1-2s) when reachable.
+  // 10s timeout — LLM round trip is ~1-2s typical but allow headroom for cold starts.
   const myController = searchAbortController;
-  const timeoutId = setTimeout(() => { searchTimedOut = true; myController.abort(); }, 6000);
+  const timeoutId = setTimeout(() => { searchTimedOut = true; myController.abort(); }, 10000);
 
   try {
-    // Search-a-licious is OFF's new official search backend (Elasticsearch-backed).
-    // The legacy /cgi/search.pl and /api/v2/search endpoints are unreliable —
-    // both timed out during validation, this one returns in ~1s.
-    const fields = 'product_name,product_name_en,product_name_th,generic_name,brands,nutriments,image_thumb_url,quantity';
-    const url = 'https://search.openfoodfacts.org/search'
-      + '?q=' + encodeURIComponent(query)
-      + '&page_size=20'
-      + '&fields=' + fields;
+    const url = NUTRITION_WORKER_URL + '/search?q=' + encodeURIComponent(query);
     const res = await fetch(url, {
       signal: searchAbortController.signal,
       headers: { 'Accept': 'application/json' },
     });
     clearTimeout(timeoutId);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      const err = await res.text().catch(() => '');
+      throw new Error('HTTP ' + res.status + ' ' + err.slice(0, 120));
+    }
     const data = await res.json();
-    // SAL returns hits[] (not products[]); brands is an array (not csv).
-    const items = (data.hits || [])
-      .map(p => ({
-        name: pickName(p),
-        brand: Array.isArray(p.brands) ? (p.brands[0] || '') : (p.brands || '').split(',')[0].trim(),
-        qty:   p.quantity || '',
-        img:   p.image_thumb_url || '',
-        ...nutrientsFromProduct(p),
-      }))
-      // Skip products with no usable macros
-      .filter(x => x.calories > 0 || x.protein > 0 || x.carbs > 0 || x.fat > 0);
+    const items = (data.foods || []).filter(f =>
+      f && f.name && f.per_100g &&
+      (f.per_100g.kcal > 0 || f.per_100g.protein > 0 || f.per_100g.carbs > 0 || f.per_100g.fat > 0)
+    );
 
     if (items.length === 0) {
-      status.textContent = 'No results — try a simpler word or use Manual entry.';
+      status.textContent = 'No results — try a different word, or use Manual entry.';
       return;
     }
-    status.textContent = items.length + ' result' + (items.length === 1 ? '' : 's') + ' — values per 100g';
-    resultsEl.innerHTML = items.map((it, i) => `
-      <div class="log-entry search-result" data-idx="${i}" style="cursor:pointer; margin-bottom:6px;">
-        <div style="display:flex; gap:10px; align-items:center;">
-          ${it.img ? `<img src="${escapeHtml(it.img)}" alt="" style="width:48px; height:48px; object-fit:cover; border-radius:6px; flex-shrink:0; background:#fff;" loading="lazy">` : `<div style="width:48px; height:48px; border-radius:6px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:20px;">🍽</div>`}
-          <div style="flex:1; min-width:0;">
-            <div style="font-weight:600; font-size:14px;">${escapeHtml(it.name)}</div>
-            <div style="font-size:11px; color:var(--text-faint);">
-              ${it.brand ? escapeHtml(it.brand) + ' · ' : ''}${it.qty ? escapeHtml(it.qty) + ' · ' : ''}per 100g:
-              <strong>${it.calories}</strong> kcal · C ${it.carbs.toFixed(1)} · P ${it.protein.toFixed(1)} · F ${it.fat.toFixed(1)}
+    status.textContent = items.length + ' result' + (items.length === 1 ? '' : 's') + ' — AI-estimated, tap a row to adjust portion';
+
+    resultsEl.innerHTML = items.map((it, i) => {
+      // Build the serving-unit dropdown: default first, then alts, then "g (custom)"
+      const def = it.default_serving || { unit: 'serving', grams: 100 };
+      const alts = Array.isArray(it.alt_servings) ? it.alt_servings : [];
+      const allServings = [def, ...alts];
+      const unitOpts = allServings.map((s, j) =>
+        `<option value="${j}" data-grams="${s.grams}">1 ${escapeHtml(s.unit)} (${s.grams}g)</option>`
+      ).join('') + `<option value="custom">g (custom)</option>`;
+
+      const p100 = it.per_100g;
+      const defKcal = Math.round(p100.kcal * def.grams / 100);
+
+      return `
+        <div class="log-entry search-result" data-idx="${i}" style="cursor:pointer; margin-bottom:6px;">
+          <div class="result-summary">
+            <div style="display:flex; gap:10px; align-items:flex-start;">
+              <div style="width:40px; height:40px; border-radius:6px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:20px;">🍽</div>
+              <div style="flex:1; min-width:0;">
+                <div style="font-weight:600; font-size:14px;">${escapeHtml(it.name)}</div>
+                <div style="font-size:11px; color:var(--text-faint); margin-top:2px;">
+                  1 ${escapeHtml(def.unit)} (${def.grams}g) ≈ <strong>${defKcal}</strong> kcal
+                </div>
+                <div style="font-size:10px; color:var(--text-faint); margin-top:1px;">
+                  per 100g: ${Math.round(p100.kcal)} kcal · C ${(+p100.carbs).toFixed(1)} · P ${(+p100.protein).toFixed(1)} · F ${(+p100.fat).toFixed(1)}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="search-portion" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-          <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom:8px;">
-            <div style="flex:1;">
-              <label style="font-size:11px;">Portion (g)</label>
-              <input type="number" class="portion-input" inputmode="decimal" min="1" step="1" value="100" style="width:100%;">
+          <div class="search-portion" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
+            <div style="display:grid; grid-template-columns:1fr 2fr; gap:8px; margin-bottom:8px;">
+              <div>
+                <label style="font-size:11px;">Quantity</label>
+                <input type="number" class="qty-input" inputmode="decimal" min="0.1" step="0.5" value="1" style="width:100%;">
+              </div>
+              <div>
+                <label style="font-size:11px;">Serving</label>
+                <select class="unit-select">${unitOpts}</select>
+              </div>
             </div>
-            <div style="flex:1;">
+            <div class="custom-g-row" style="display:none; margin-bottom:8px;">
+              <label style="font-size:11px;">Grams</label>
+              <input type="number" class="custom-g-input" inputmode="numeric" min="1" step="1" value="100" style="width:100%;">
+            </div>
+            <div style="margin-bottom:8px;">
               <label style="font-size:11px;">Meal</label>
               <select class="portion-meal">
                 <option value="breakfast">🌅 Breakfast</option>
@@ -10300,21 +10295,25 @@ async function runFoodSearch(query) {
                 <option value="snack">🍿 Snack</option>
               </select>
             </div>
-          </div>
-          <div class="portion-preview" style="font-size:12px; color:var(--text-dim); margin-bottom:8px; padding:8px; background:var(--surface-2); border-radius:6px; font-variant-numeric:tabular-nums;"></div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-            <button type="button" class="btn btn-secondary search-cancel" style="padding:8px;">Cancel</button>
-            <button type="button" class="btn btn-primary search-add" style="padding:8px;">✓ Add to log</button>
+            <div class="portion-preview" style="font-size:12px; color:var(--text-dim); margin-bottom:8px; padding:8px; background:var(--surface-2); border-radius:6px; font-variant-numeric:tabular-nums;"></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <button type="button" class="btn btn-secondary search-cancel" style="padding:8px;">Cancel</button>
+              <button type="button" class="btn btn-primary search-add" style="padding:8px;">✓ Add to log</button>
+            </div>
           </div>
         </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
 
-    // Wire each result row to expand its portion picker and live-preview macros.
+    // Wire each result row
     resultsEl.querySelectorAll('.search-result').forEach(row => {
       const it = items[+row.dataset.idx];
+      const summary    = row.querySelector('.result-summary');
       const portionDiv = row.querySelector('.search-portion');
-      const portionInp = row.querySelector('.portion-input');
+      const qtyInp     = row.querySelector('.qty-input');
+      const unitSel    = row.querySelector('.unit-select');
+      const customRow  = row.querySelector('.custom-g-row');
+      const customInp  = row.querySelector('.custom-g-input');
       const mealSel    = row.querySelector('.portion-meal');
       const preview    = row.querySelector('.portion-preview');
       const cancelBtn  = row.querySelector('.search-cancel');
@@ -10322,55 +10321,80 @@ async function runFoodSearch(query) {
 
       mealSel.value = defaultMealForNow();
 
-      const recalcPreview = () => {
-        const g = parseFloat(portionInp.value) || 0;
-        const ratio = g / 100;
-        preview.innerHTML = `<strong>${Math.round(it.calories * ratio)}</strong> kcal · C ${(it.carbs * ratio).toFixed(1)} · P ${(it.protein * ratio).toFixed(1)} · F ${(it.fat * ratio).toFixed(1)}`;
+      // Returns total grams based on current quantity/unit selection.
+      const def  = it.default_serving || { unit: 'serving', grams: 100 };
+      const alts = Array.isArray(it.alt_servings) ? it.alt_servings : [];
+      const allServings = [def, ...alts];
+      const totalGrams = () => {
+        if (unitSel.value === 'custom') return parseFloat(customInp.value) || 0;
+        const idx = +unitSel.value;
+        const s = allServings[idx];
+        const qty = parseFloat(qtyInp.value) || 0;
+        return (s ? s.grams : 100) * qty;
       };
 
-      row.querySelector('div').addEventListener('click', (e) => {
-        // First tap on the row opens portion picker; ignore taps inside picker.
+      const p = it.per_100g;
+      const recalcPreview = () => {
+        const g = totalGrams();
+        const ratio = g / 100;
+        preview.innerHTML = `<strong>${Math.round(p.kcal * ratio)}</strong> kcal · C ${(p.carbs * ratio).toFixed(1)} · P ${(p.protein * ratio).toFixed(1)} · F ${(p.fat * ratio).toFixed(1)} · ${Math.round(g)}g`;
+      };
+
+      summary.addEventListener('click', (e) => {
         if (portionDiv.style.display === 'none') {
-          // Collapse any other open pickers
           resultsEl.querySelectorAll('.search-portion').forEach(d => d.style.display = 'none');
           portionDiv.style.display = 'block';
           recalcPreview();
         }
         e.stopPropagation();
       });
-      portionInp.addEventListener('input', recalcPreview);
+      unitSel.addEventListener('change', () => {
+        customRow.style.display = unitSel.value === 'custom' ? 'block' : 'none';
+        recalcPreview();
+      });
+      qtyInp.addEventListener('input', recalcPreview);
+      customInp.addEventListener('input', recalcPreview);
       cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); portionDiv.style.display = 'none'; });
       addBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const g = parseFloat(portionInp.value);
-        if (!g || g <= 0) { showToast('Enter a portion size', 'error'); portionInp.focus(); return; }
+        const g = totalGrams();
+        if (!g || g <= 0) { showToast('Enter a portion size', 'error'); return; }
         const ratio = g / 100;
+        // Build the entry's display name with portion info
+        let portionLabel;
+        if (unitSel.value === 'custom') {
+          portionLabel = Math.round(g) + 'g';
+        } else {
+          const idx = +unitSel.value;
+          const s = allServings[idx];
+          const qty = parseFloat(qtyInp.value) || 1;
+          portionLabel = qty + ' ' + s.unit + (qty > 1 ? 's' : '') + ' (' + Math.round(g) + 'g)';
+        }
         state.nutritionLogs.push({
           id: 'N' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
           date: nutritionDate,
           createdAt: new Date().toISOString(),
-          foodName: it.name + (it.brand ? ' (' + it.brand + ')' : '') + ' — ' + g + 'g',
+          foodName: it.name + ' — ' + portionLabel,
           meal: mealSel.value,
-          calories: Math.round(it.calories * ratio),
-          protein:  +(it.protein * ratio).toFixed(1),
-          carbs:    +(it.carbs   * ratio).toFixed(1),
-          fat:      +(it.fat     * ratio).toFixed(1),
+          calories: Math.round(p.kcal * ratio),
+          protein:  +(p.protein * ratio).toFixed(1),
+          carbs:    +(p.carbs   * ratio).toFixed(1),
+          fat:      +(p.fat     * ratio).toFixed(1),
           notes: '',
-          source: 'search',  // tag so we know this came from OFF
+          source: 'ai-search',
         });
         saveNutritionState();
         closeSearchModal();
         renderNutritionLog();
-        showToast('Added ' + g + 'g of ' + it.name.slice(0, 30));
+        showToast('Added ' + portionLabel + ' of ' + it.name.slice(0, 30));
       });
     });
   } catch (e) {
     clearTimeout(timeoutId);
     if (e.name === 'AbortError') {
       if (searchTimedOut) {
-        status.textContent = '⏱ Search timed out (Open Food Facts slow). Try again, or use Manual entry.';
+        status.textContent = '⏱ Search timed out. Try again, or use Manual entry.';
       }
-      // else: user typed again, silently ignore
       return;
     }
     status.textContent = '⚠ Search failed: ' + (e.message || e);
