@@ -1778,9 +1778,9 @@ select {
             <span style="font-size:22px;">📷</span>
             <span style="font-weight:600; font-size:13px;">Photo <span style="font-size:10px; color:var(--text-faint);">(soon)</span></span>
           </button>
-          <button class="btn btn-secondary" id="nutritionAddSearchBtn" disabled style="display:flex; flex-direction:column; gap:4px; padding:14px 6px; height:auto; line-height:1.2; opacity:0.55;">
+          <button class="btn btn-primary" id="nutritionAddSearchBtn" style="display:flex; flex-direction:column; gap:4px; padding:14px 6px; height:auto; line-height:1.2;">
             <span style="font-size:22px;">🔎</span>
-            <span style="font-weight:600; font-size:13px;">Search <span style="font-size:10px; color:var(--text-faint);">(soon)</span></span>
+            <span style="font-weight:600; font-size:13px;">Search</span>
           </button>
           <button class="btn btn-secondary" id="nutritionAddBarcodeBtn" disabled style="display:flex; flex-direction:column; gap:4px; padding:14px 6px; height:auto; line-height:1.2; opacity:0.55;">
             <span style="font-size:22px;">📦</span>
@@ -1994,6 +1994,27 @@ select {
       <button class="btn btn-secondary" id="customCardioCancelBtn" type="button">Cancel</button>
       <button class="btn btn-primary" id="customCardioSaveBtn" type="button">✓ Save</button>
     </div>
+  </div>
+</div>
+
+<!-- NUTRITION SEARCH MODAL (v1.11 — Open Food Facts) -->
+<div id="nutritionSearchModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1002; padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); max-width:560px; margin:20px auto; padding:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div style="font-weight:600; font-size:16px;">🔎 Search food</div>
+      <button id="nutritionSearchClose" type="button" style="background:transparent; border:none; color:var(--text-dim); font-size:24px; cursor:pointer; padding:4px 10px;">×</button>
+    </div>
+
+    <div class="search-wrap" style="margin-bottom:10px;">
+      <input type="search" id="nutritionSearchInput" class="search-input" placeholder="Type a food name… (e.g. nutella, chicken, milk)" autocomplete="off">
+      <button type="button" class="search-clear" id="nutritionSearchClear" tabindex="-1">✕</button>
+    </div>
+
+    <div id="nutritionSearchStatus" style="font-size:12px; color:var(--text-faint); margin-bottom:8px; min-height:18px;"></div>
+
+    <div id="nutritionSearchResults" style="max-height:55vh; overflow-y:auto;"></div>
+
+    <div style="font-size:11px; color:var(--text-faint); margin-top:10px; text-align:center;">Powered by <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener" style="color:var(--text-dim);">Open Food Facts</a> — community-maintained, may be incomplete for some local products.</div>
   </div>
 </div>
 
@@ -10154,6 +10175,188 @@ function deleteNutritionEntry(id) {
   renderNutritionLog();
 }
 
+// ============================================================
+// NUTRITION SEARCH (Open Food Facts, v1.11)
+// ============================================================
+let searchAbortController = null;
+let searchDebounceTimer = null;
+
+function openSearchModal() {
+  $('#nutritionSearchModal').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  $('#nutritionSearchInput').value = '';
+  $('#nutritionSearchResults').innerHTML = '';
+  $('#nutritionSearchStatus').textContent = 'Type to search…';
+  setTimeout(() => $('#nutritionSearchInput').focus(), 80);
+}
+
+function closeSearchModal() {
+  $('#nutritionSearchModal').style.display = 'none';
+  document.body.style.overflow = '';
+  if (searchAbortController) { searchAbortController.abort(); searchAbortController = null; }
+  if (searchDebounceTimer)   { clearTimeout(searchDebounceTimer); searchDebounceTimer = null; }
+}
+
+// Pick the best display name from OFF's per-language fields. Prefer Thai → English → generic.
+function pickName(p) {
+  return (p.product_name_th && p.product_name_th.trim())
+      || (p.product_name_en && p.product_name_en.trim())
+      || (p.product_name    && p.product_name.trim())
+      || (p.generic_name    && p.generic_name.trim())
+      || 'Unnamed';
+}
+
+function nutrientsFromProduct(p) {
+  const n = p.nutriments || {};
+  // OFF stores per-100g values. Some products use *_100g, others *_serving — prefer 100g.
+  const num = (k, fallback) => {
+    const v = n[k];
+    return typeof v === 'number' && isFinite(v) ? v : fallback;
+  };
+  return {
+    calories: Math.round(num('energy-kcal_100g', num('energy-kcal', 0))),
+    protein:  num('proteins_100g',      0),
+    carbs:    num('carbohydrates_100g', 0),
+    fat:      num('fat_100g',           0),
+  };
+}
+
+async function runFoodSearch(query) {
+  const status   = $('#nutritionSearchStatus');
+  const resultsEl = $('#nutritionSearchResults');
+  if (!query || query.trim().length < 2) {
+    status.textContent = 'Type at least 2 letters…';
+    resultsEl.innerHTML = '';
+    return;
+  }
+  status.textContent = 'Searching…';
+  resultsEl.innerHTML = '';
+
+  if (searchAbortController) searchAbortController.abort();
+  searchAbortController = new AbortController();
+
+  try {
+    // OFF search endpoint. fields= keeps the payload small. page_size=20 is enough for browse.
+    const url = 'https://world.openfoodfacts.org/cgi/search.pl'
+      + '?search_terms=' + encodeURIComponent(query)
+      + '&search_simple=1&action=process&json=1&page_size=20'
+      + '&fields=product_name,product_name_en,product_name_th,generic_name,brands,nutriments,image_thumb_url,quantity';
+    const res = await fetch(url, { signal: searchAbortController.signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const items = (data.products || [])
+      .map(p => ({
+        name: pickName(p),
+        brand: (p.brands || '').split(',')[0].trim(),
+        qty:   p.quantity || '',
+        img:   p.image_thumb_url || '',
+        ...nutrientsFromProduct(p),
+      }))
+      // Skip products with no usable macros
+      .filter(x => x.calories > 0 || x.protein > 0 || x.carbs > 0 || x.fat > 0);
+
+    if (items.length === 0) {
+      status.textContent = 'No results — try a simpler word or use Manual entry.';
+      return;
+    }
+    status.textContent = items.length + ' result' + (items.length === 1 ? '' : 's') + ' — values per 100g';
+    resultsEl.innerHTML = items.map((it, i) => `
+      <div class="log-entry search-result" data-idx="${i}" style="cursor:pointer; margin-bottom:6px;">
+        <div style="display:flex; gap:10px; align-items:center;">
+          ${it.img ? `<img src="${escapeHtml(it.img)}" alt="" style="width:48px; height:48px; object-fit:cover; border-radius:6px; flex-shrink:0; background:#fff;" loading="lazy">` : `<div style="width:48px; height:48px; border-radius:6px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:20px;">🍽</div>`}
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:600; font-size:14px;">${escapeHtml(it.name)}</div>
+            <div style="font-size:11px; color:var(--text-faint);">
+              ${it.brand ? escapeHtml(it.brand) + ' · ' : ''}${it.qty ? escapeHtml(it.qty) + ' · ' : ''}per 100g:
+              <strong>${it.calories}</strong> kcal · C ${it.carbs.toFixed(1)} · P ${it.protein.toFixed(1)} · F ${it.fat.toFixed(1)}
+            </div>
+          </div>
+        </div>
+        <div class="search-portion" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
+          <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom:8px;">
+            <div style="flex:1;">
+              <label style="font-size:11px;">Portion (g)</label>
+              <input type="number" class="portion-input" inputmode="decimal" min="1" step="1" value="100" style="width:100%;">
+            </div>
+            <div style="flex:1;">
+              <label style="font-size:11px;">Meal</label>
+              <select class="portion-meal">
+                <option value="breakfast">🌅 Breakfast</option>
+                <option value="lunch">☀️ Lunch</option>
+                <option value="dinner">🌙 Dinner</option>
+                <option value="snack">🍿 Snack</option>
+              </select>
+            </div>
+          </div>
+          <div class="portion-preview" style="font-size:12px; color:var(--text-dim); margin-bottom:8px; padding:8px; background:var(--surface-2); border-radius:6px; font-variant-numeric:tabular-nums;"></div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <button type="button" class="btn btn-secondary search-cancel" style="padding:8px;">Cancel</button>
+            <button type="button" class="btn btn-primary search-add" style="padding:8px;">✓ Add to log</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    // Wire each result row to expand its portion picker and live-preview macros.
+    resultsEl.querySelectorAll('.search-result').forEach(row => {
+      const it = items[+row.dataset.idx];
+      const portionDiv = row.querySelector('.search-portion');
+      const portionInp = row.querySelector('.portion-input');
+      const mealSel    = row.querySelector('.portion-meal');
+      const preview    = row.querySelector('.portion-preview');
+      const cancelBtn  = row.querySelector('.search-cancel');
+      const addBtn     = row.querySelector('.search-add');
+
+      mealSel.value = defaultMealForNow();
+
+      const recalcPreview = () => {
+        const g = parseFloat(portionInp.value) || 0;
+        const ratio = g / 100;
+        preview.innerHTML = `<strong>${Math.round(it.calories * ratio)}</strong> kcal · C ${(it.carbs * ratio).toFixed(1)} · P ${(it.protein * ratio).toFixed(1)} · F ${(it.fat * ratio).toFixed(1)}`;
+      };
+
+      row.querySelector('div').addEventListener('click', (e) => {
+        // First tap on the row opens portion picker; ignore taps inside picker.
+        if (portionDiv.style.display === 'none') {
+          // Collapse any other open pickers
+          resultsEl.querySelectorAll('.search-portion').forEach(d => d.style.display = 'none');
+          portionDiv.style.display = 'block';
+          recalcPreview();
+        }
+        e.stopPropagation();
+      });
+      portionInp.addEventListener('input', recalcPreview);
+      cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); portionDiv.style.display = 'none'; });
+      addBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const g = parseFloat(portionInp.value);
+        if (!g || g <= 0) { showToast('Enter a portion size', 'error'); portionInp.focus(); return; }
+        const ratio = g / 100;
+        state.nutritionLogs.push({
+          id: 'N' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+          date: nutritionDate,
+          createdAt: new Date().toISOString(),
+          foodName: it.name + (it.brand ? ' (' + it.brand + ')' : '') + ' — ' + g + 'g',
+          meal: mealSel.value,
+          calories: Math.round(it.calories * ratio),
+          protein:  +(it.protein * ratio).toFixed(1),
+          carbs:    +(it.carbs   * ratio).toFixed(1),
+          fat:      +(it.fat     * ratio).toFixed(1),
+          notes: '',
+          source: 'search',  // tag so we know this came from OFF
+        });
+        saveNutritionState();
+        closeSearchModal();
+        renderNutritionLog();
+        showToast('Added ' + g + 'g of ' + it.name.slice(0, 30));
+      });
+    });
+  } catch (e) {
+    if (e.name === 'AbortError') return; // user typed again, ignore
+    status.textContent = '⚠ Search failed: ' + (e.message || e);
+  }
+}
+
 // ---- Targets calculator ----
 function openTargetsModal() {
   const t = state.nutritionTargets;
@@ -11411,6 +11614,22 @@ async function init() {
   $('#nutritionEntryClose').addEventListener('click', closeNutritionEntryModal);
   $('#nutritionEntryCancelBtn').addEventListener('click', closeNutritionEntryModal);
   $('#nutritionEntrySaveBtn').addEventListener('click', saveNutritionEntry);
+
+  // Search (v1.11) — Open Food Facts
+  $('#nutritionAddSearchBtn').addEventListener('click', openSearchModal);
+  $('#nutritionSearchClose').addEventListener('click', closeSearchModal);
+  $('#nutritionSearchClear').addEventListener('click', () => {
+    $('#nutritionSearchInput').value = '';
+    $('#nutritionSearchResults').innerHTML = '';
+    $('#nutritionSearchStatus').textContent = 'Type to search…';
+    $('#nutritionSearchInput').focus();
+  });
+  // Debounced search-as-you-type so a fast typist doesn't trigger 6 requests.
+  $('#nutritionSearchInput').addEventListener('input', (e) => {
+    const q = e.target.value;
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => runFoodSearch(q), 400);
+  });
 
   // Targets modal (opened from Settings)
   $('#openTargetsBtn').addEventListener('click', openTargetsModal);
