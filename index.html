@@ -13,7 +13,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Workout Tracker</title>
-<meta name="app-version" content="1.09">
+<meta name="app-version" content="1.10">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
@@ -1249,7 +1249,7 @@ select {
         Your data is private. Only you can access it.
       </div>
       <div style="text-align:center; font-size:10px; color:var(--text-faint); margin-top:6px; opacity:0.7;">
-        v1.09
+        v1.10
       </div>
     </div>
   </div>
@@ -1309,6 +1309,7 @@ select {
 <nav class="tabs">
   <button class="tab active" data-view="strength">💪 Strength</button>
   <button class="tab" data-view="cardio">🏃 Cardio</button>
+  <button class="tab" data-view="nutrition">🍎 Nutrition</button>
   <button class="tab" data-view="exercises">📚 Library</button>
   <button class="tab" data-view="settings">⚙️ Settings</button>
 </nav>
@@ -1732,6 +1733,56 @@ select {
     </div>
   </section>
 
+  <!-- NUTRITION VIEW (manual entry — v1.10 foundation; photo/barcode/search land later) -->
+  <section class="view" id="view-nutrition">
+    <div class="card">
+      <div class="card-title">Nutrition</div>
+      <div class="tabs" style="background:transparent; border-bottom:1px solid var(--border); position:static; margin:-4px -4px 12px;">
+        <button class="tab nutrition-subtab active" data-nutrition-view="log" style="font-size:12px; padding:10px 6px;">📝 Log</button>
+        <button class="tab nutrition-subtab" data-nutrition-view="history" style="font-size:12px; padding:10px 6px;">📅 History</button>
+      </div>
+
+      <!-- NUTRITION LOG (today's entries + daily summary) -->
+      <div id="nutrition-view-log" class="nutrition-subview">
+        <div class="form-group">
+          <label for="nutritionDate">Date</label>
+          <input readonly class="datepicker-input" type="text" id="nutritionDate" autocomplete="off">
+        </div>
+
+        <!-- Daily summary card (totals vs targets) -->
+        <div id="nutritionDailySummary" style="margin-bottom:12px;"></div>
+
+        <!-- Entry method picker (v1.10 = manual only; others ghost-disabled to signal what's coming) -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
+          <button class="btn btn-primary" id="nutritionAddManualBtn" style="display:flex; flex-direction:column; gap:4px; padding:14px 6px; height:auto; line-height:1.2;">
+            <span style="font-size:22px;">✍️</span>
+            <span style="font-weight:600; font-size:13px;">Manual</span>
+          </button>
+          <button class="btn btn-secondary" id="nutritionAddPhotoBtn" disabled style="display:flex; flex-direction:column; gap:4px; padding:14px 6px; height:auto; line-height:1.2; opacity:0.55;">
+            <span style="font-size:22px;">📷</span>
+            <span style="font-weight:600; font-size:13px;">Photo <span style="font-size:10px; color:var(--text-faint);">(soon)</span></span>
+          </button>
+          <button class="btn btn-secondary" id="nutritionAddSearchBtn" disabled style="display:flex; flex-direction:column; gap:4px; padding:14px 6px; height:auto; line-height:1.2; opacity:0.55;">
+            <span style="font-size:22px;">🔎</span>
+            <span style="font-weight:600; font-size:13px;">Search <span style="font-size:10px; color:var(--text-faint);">(soon)</span></span>
+          </button>
+          <button class="btn btn-secondary" id="nutritionAddBarcodeBtn" disabled style="display:flex; flex-direction:column; gap:4px; padding:14px 6px; height:auto; line-height:1.2; opacity:0.55;">
+            <span style="font-size:22px;">📦</span>
+            <span style="font-weight:600; font-size:13px;">Barcode <span style="font-size:10px; color:var(--text-faint);">(soon)</span></span>
+          </button>
+        </div>
+
+        <!-- Today's entries, grouped by meal -->
+        <div id="nutritionTodayList"></div>
+      </div>
+
+      <!-- NUTRITION HISTORY (past days' totals) -->
+      <div id="nutrition-view-history" class="nutrition-subview" style="display:none;">
+        <div id="nutritionHistoryList"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- EXERCISES VIEW (library only) -->
   <section class="view" id="view-exercises">
     <!-- Sub-tab bar: Exercises | Stretching -->
@@ -1820,6 +1871,14 @@ select {
       <input type="file" id="importFile" accept=".json,.csv,text/csv,application/json" style="display:none;">
     </div>
 
+    <!-- NUTRITION TARGETS -->
+    <div class="card">
+      <div class="card-title">Nutrition targets</div>
+      <div style="font-size:13px; color:var(--text-dim); margin-bottom:10px;">Set your daily intake goals. Used to render progress bars in the Nutrition tab.</div>
+      <div id="settingsTargetsSummary" style="font-size:13px; color:var(--text); margin-bottom:12px; padding:10px; background:var(--surface-2); border-radius:6px;">—</div>
+      <button class="btn btn-secondary" id="openTargetsBtn" type="button">⚙️ Edit targets / open calculator</button>
+    </div>
+
     <!-- ACCOUNT -->
     <div class="card">
       <div class="card-title">Account</div>
@@ -1836,7 +1895,7 @@ select {
 
     <!-- VERSION FOOTER -->
     <div style="text-align:center; padding:16px 0; font-size:11px; color:var(--text-faint);">
-      Workout Tracker v1.09
+      Workout Tracker v1.10
     </div>
 
   </section>
@@ -1918,6 +1977,153 @@ select {
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
       <button class="btn btn-secondary" id="customCardioCancelBtn" type="button">Cancel</button>
       <button class="btn btn-primary" id="customCardioSaveBtn" type="button">✓ Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- NUTRITION ENTRY MODAL (manual add + edit) -->
+<div id="nutritionEntryModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1002; padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); max-width:480px; margin:40px auto; padding:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <div style="font-weight:600; font-size:16px;" id="nutritionEntryTitle">Add food</div>
+      <button id="nutritionEntryClose" type="button" style="background:transparent; border:none; color:var(--text-dim); font-size:24px; cursor:pointer; padding:4px 10px;">×</button>
+    </div>
+
+    <div class="form-group">
+      <label for="nutritionFoodName">Food name</label>
+      <input type="text" id="nutritionFoodName" autocomplete="off" placeholder="e.g. Pad Krapao Gai">
+    </div>
+
+    <div class="form-group">
+      <label for="nutritionMeal">Meal</label>
+      <select id="nutritionMeal">
+        <option value="breakfast">🌅 Breakfast</option>
+        <option value="lunch">☀️ Lunch</option>
+        <option value="dinner">🌙 Dinner</option>
+        <option value="snack">🍿 Snack</option>
+      </select>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <div class="form-group">
+        <label for="nutritionCalories">Calories (kcal)</label>
+        <input type="number" id="nutritionCalories" inputmode="numeric" min="0" step="1" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label for="nutritionProtein">Protein (g)</label>
+        <input type="number" id="nutritionProtein" inputmode="decimal" min="0" step="0.1" placeholder="0">
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <div class="form-group">
+        <label for="nutritionCarbs">Carbs (g)</label>
+        <input type="number" id="nutritionCarbs" inputmode="decimal" min="0" step="0.1" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label for="nutritionFat">Fat (g)</label>
+        <input type="number" id="nutritionFat" inputmode="decimal" min="0" step="0.1" placeholder="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="nutritionFiber">Fiber (g) <span style="color:var(--text-faint); font-weight:400;">— optional</span></label>
+      <input type="number" id="nutritionFiber" inputmode="decimal" min="0" step="0.1" placeholder="0">
+    </div>
+    <div class="form-group">
+      <label for="nutritionNotes">Notes <span style="color:var(--text-faint); font-weight:400;">— optional</span></label>
+      <input type="text" id="nutritionNotes" autocomplete="off" placeholder="e.g. with extra rice">
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <button class="btn btn-secondary" id="nutritionEntryCancelBtn" type="button">Cancel</button>
+      <button class="btn btn-primary" id="nutritionEntrySaveBtn" type="button">✓ Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- NUTRITION TARGETS CALCULATOR MODAL -->
+<div id="nutritionTargetsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1002; padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); max-width:480px; margin:40px auto; padding:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <div style="font-weight:600; font-size:16px;">Daily nutrition targets</div>
+      <button id="nutritionTargetsClose" type="button" style="background:transparent; border:none; color:var(--text-dim); font-size:24px; cursor:pointer; padding:4px 10px;">×</button>
+    </div>
+
+    <div style="font-size:12px; color:var(--text-faint); margin-bottom:12px;">Enter your stats below to auto-calculate targets (Mifflin-St Jeor formula). You can also override any value manually.</div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <div class="form-group">
+        <label for="tgtSex">Sex</label>
+        <select id="tgtSex">
+          <option value="M">Male</option>
+          <option value="F">Female</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="tgtAge">Age</label>
+        <input type="number" id="tgtAge" inputmode="numeric" min="10" max="100" step="1">
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <div class="form-group">
+        <label for="tgtHeight">Height (cm)</label>
+        <input type="number" id="tgtHeight" inputmode="decimal" min="100" max="230" step="0.5">
+      </div>
+      <div class="form-group">
+        <label for="tgtWeight">Weight (kg)</label>
+        <input type="number" id="tgtWeight" inputmode="decimal" min="30" max="250" step="0.1">
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="tgtActivity">Activity level</label>
+      <select id="tgtActivity">
+        <option value="sedentary">Sedentary (desk job, no exercise)</option>
+        <option value="light">Light (1–3 workouts/week)</option>
+        <option value="moderate">Moderate (3–5 workouts/week)</option>
+        <option value="active">Active (6–7 workouts/week)</option>
+        <option value="very">Very active (2× daily / labour)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="tgtGoal">Goal</label>
+      <select id="tgtGoal">
+        <option value="lose">Lose fat (–500 kcal)</option>
+        <option value="maintain">Maintain</option>
+        <option value="gain">Gain muscle (+300 kcal)</option>
+      </select>
+    </div>
+
+    <button class="btn btn-secondary" id="tgtCalcBtn" type="button" style="width:100%; margin-bottom:14px;">⚡ Calculate from my stats</button>
+
+    <div style="border-top:1px solid var(--border); padding-top:12px; margin-bottom:8px; font-size:13px; font-weight:600; color:var(--text-dim);">Daily targets</div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <div class="form-group">
+        <label for="tgtCalories">Calories (kcal)</label>
+        <input type="number" id="tgtCalories" inputmode="numeric" min="0" step="10">
+      </div>
+      <div class="form-group">
+        <label for="tgtProtein">Protein (g)</label>
+        <input type="number" id="tgtProtein" inputmode="numeric" min="0" step="1">
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <div class="form-group">
+        <label for="tgtCarbs">Carbs (g)</label>
+        <input type="number" id="tgtCarbs" inputmode="numeric" min="0" step="1">
+      </div>
+      <div class="form-group">
+        <label for="tgtFat">Fat (g)</label>
+        <input type="number" id="tgtFat" inputmode="numeric" min="0" step="1">
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="tgtFiber">Fiber (g)</label>
+      <input type="number" id="tgtFiber" inputmode="numeric" min="0" step="1">
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <button class="btn btn-secondary" id="tgtCancelBtn" type="button">Cancel</button>
+      <button class="btn btn-primary" id="tgtSaveBtn" type="button">✓ Save targets</button>
     </div>
   </div>
 </div>
@@ -4951,6 +5157,12 @@ async function clearImageCache() {
 // STATE
 // ============================================================
 const STORAGE_KEY = 'workout_tracker_v1';
+const DEFAULT_NUTRITION_TARGETS = {
+  calories: 2000, protein: 150, carbs: 200, fat: 65, fiber: 25,
+  // Calculator inputs (so the user can re-open and tweak)
+  sex: 'M', age: 30, heightCm: 175, weightKg: 75,
+  activity: 'moderate', goal: 'maintain',
+};
 let state = {
   logs: [],
   // User-defined exercises / cardio activities that aren't in the
@@ -4959,6 +5171,11 @@ let state = {
   // need to re-add them on each device for now.
   customExercises: [],
   customActivities: [],
+  // Nutrition: per-food entries (logs) and the user's daily macro targets.
+  // Entries live in the same `workouts` table with type='nutrition'.
+  // Targets are a single per-user row with type='nutrition_targets'.
+  nutritionLogs: [],
+  nutritionTargets: { ...DEFAULT_NUTRITION_TARGETS },
   selectedExercise: null,
   currentView: 'strength',
   detailReturnView: 'strength',
@@ -4972,6 +5189,10 @@ function loadState() {
       if (Array.isArray(parsed.logs))             state.logs = parsed.logs;
       if (Array.isArray(parsed.customExercises))  state.customExercises  = parsed.customExercises;
       if (Array.isArray(parsed.customActivities)) state.customActivities = parsed.customActivities;
+      if (Array.isArray(parsed.nutritionLogs))    state.nutritionLogs    = parsed.nutritionLogs;
+      if (parsed.nutritionTargets && typeof parsed.nutritionTargets === 'object') {
+        state.nutritionTargets = { ...DEFAULT_NUTRITION_TARGETS, ...parsed.nutritionTargets };
+      }
     }
   } catch (e) { console.warn('Could not load state', e); }
 }
@@ -4983,6 +5204,8 @@ function saveStateLocal() {
       logs: state.logs,
       customExercises: state.customExercises,
       customActivities: state.customActivities,
+      nutritionLogs: state.nutritionLogs,
+      nutritionTargets: state.nutritionTargets,
     }));
   } catch (e) { showToast('Could not save data', 'error'); }
 }
@@ -7737,13 +7960,19 @@ function switchView(view) {
     if (which === 'stretching') renderStretching();
     else renderLibrary();
   }
-  if (view === 'settings') updateExportPreview();
+  if (view === 'settings') { updateExportPreview(); updateSettingsTargetsSummary(); }
   if (view === 'strength') {
     // Restore whichever strength sub-view the user last used
     switchStrengthSubview(strengthSubview);
   }
   if (view === 'cardio') {
     switchCardioSubview(cardioSubview);
+  }
+  if (view === 'nutrition') {
+    if (!nutritionDate) nutritionDate = todayISO();
+    const inp = $('#nutritionDate');
+    if (inp && !inp.value) inp.value = formatDate(nutritionDate);
+    switchNutritionSubview(nutritionSubview);
   }
 }
 
@@ -9615,6 +9844,365 @@ function switchCardioSubview(name) {
 }
 
 // ============================================================
+// NUTRITION
+// ============================================================
+let nutritionSubview = 'log';        // 'log' | 'history'
+let nutritionDate = null;            // currently selected date in YYYY-MM-DD
+let editingNutritionId = null;       // null when adding; entry id when editing
+
+function defaultMealForNow() {
+  const h = new Date().getHours();
+  if (h < 10) return 'breakfast';
+  if (h < 14) return 'lunch';
+  if (h < 17) return 'snack';
+  if (h < 21) return 'dinner';
+  return 'snack';
+}
+
+function mealLabel(meal) {
+  return {
+    breakfast: '🌅 Breakfast',
+    lunch:     '☀️ Lunch',
+    dinner:    '🌙 Dinner',
+    snack:     '🍿 Snack',
+  }[meal] || meal;
+}
+
+function switchNutritionSubview(name) {
+  nutritionSubview = name;
+  $$('.nutrition-subview').forEach(v => v.style.display = 'none');
+  const target = $('#nutrition-view-' + name);
+  if (target) target.style.display = 'block';
+  $$('.nutrition-subtab').forEach(t => t.classList.toggle('active', t.dataset.nutritionView === name));
+  if (name === 'log')     renderNutritionLog();
+  if (name === 'history') renderNutritionHistory();
+}
+
+// Daily summary card: totals for selected date vs targets, with progress bars.
+function renderNutritionDailySummary() {
+  const el = $('#nutritionDailySummary');
+  if (!el) return;
+  const t = state.nutritionTargets;
+  const entries = state.nutritionLogs.filter(n => n.date === nutritionDate);
+  const sum = entries.reduce((a, n) => ({
+    calories: a.calories + (n.calories || 0),
+    protein:  a.protein  + (n.protein  || 0),
+    carbs:    a.carbs    + (n.carbs    || 0),
+    fat:      a.fat      + (n.fat      || 0),
+    fiber:    a.fiber    + (n.fiber    || 0),
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+
+  const bar = (label, val, tgt, color) => {
+    const pct = tgt > 0 ? Math.min(100, (val / tgt) * 100) : 0;
+    const over = tgt > 0 && val > tgt;
+    return `
+      <div style="margin-bottom:8px;">
+        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;">
+          <span style="color:var(--text-dim)">${label}</span>
+          <span style="color:${over ? 'var(--danger)' : 'var(--text)'}; font-variant-numeric:tabular-nums;">
+            <strong>${val.toFixed(label === 'Calories' ? 0 : 1)}</strong> <span style="color:var(--text-faint)">/ ${tgt}</span>
+          </span>
+        </div>
+        <div style="height:6px; background:var(--surface-2); border-radius:3px; overflow:hidden;">
+          <div style="height:100%; width:${pct}%; background:${over ? 'var(--danger)' : color}; transition:width 0.3s;"></div>
+        </div>
+      </div>`;
+  };
+
+  el.innerHTML = `
+    <div class="card" style="padding:12px; margin-bottom:0;">
+      <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
+        <div style="font-weight:600; font-size:14px;">Daily summary</div>
+        <div style="font-size:11px; color:var(--text-faint);">${entries.length} item${entries.length === 1 ? '' : 's'}</div>
+      </div>
+      ${bar('Calories', sum.calories, t.calories, '#3b82f6')}
+      ${bar('Protein (g)', sum.protein, t.protein, '#10b981')}
+      ${bar('Carbs (g)',   sum.carbs,   t.carbs,   '#f59e0b')}
+      ${bar('Fat (g)',     sum.fat,     t.fat,     '#ec4899')}
+      ${bar('Fiber (g)',   sum.fiber,   t.fiber,   '#8b5cf6')}
+    </div>`;
+}
+
+// Today's entries grouped by meal.
+function renderNutritionLog() {
+  renderNutritionDailySummary();
+  const list = $('#nutritionTodayList');
+  if (!list) return;
+  const entries = state.nutritionLogs
+    .filter(n => n.date === nutritionDate)
+    .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+
+  if (entries.length === 0) {
+    list.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-faint); font-size:13px;">No food logged for this day yet. Tap <strong>Manual</strong> above to add your first item.</div>`;
+    return;
+  }
+
+  const grouped = { breakfast: [], lunch: [], dinner: [], snack: [] };
+  entries.forEach(n => { (grouped[n.meal] || grouped.snack).push(n); });
+
+  let html = '';
+  ['breakfast', 'lunch', 'dinner', 'snack'].forEach(meal => {
+    const items = grouped[meal];
+    if (items.length === 0) return;
+    const mealKcal = items.reduce((s, x) => s + (x.calories || 0), 0);
+    html += `
+      <div style="margin-bottom:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; padding:0 4px;">
+          <div style="font-weight:600; font-size:13px;">${mealLabel(meal)}</div>
+          <div style="font-size:12px; color:var(--text-faint); font-variant-numeric:tabular-nums;">${mealKcal} kcal</div>
+        </div>
+        ${items.map(n => `
+          <div class="log-entry" style="margin-bottom:6px; cursor:pointer;" data-edit-nutrition="${n.id}">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+              <div style="flex:1; min-width:0;">
+                <div style="font-weight:600; font-size:14px;">${escapeHtml(n.foodName || '(unnamed)')}</div>
+                <div style="font-size:12px; color:var(--text-faint); margin-top:2px;">
+                  P ${(n.protein || 0).toFixed(1)}g · C ${(n.carbs || 0).toFixed(1)}g · F ${(n.fat || 0).toFixed(1)}g${n.fiber ? ' · Fb ' + (n.fiber).toFixed(1) + 'g' : ''}
+                </div>
+                ${n.notes ? `<div style="font-size:11px; color:var(--text-faint); margin-top:3px; font-style:italic;">${escapeHtml(n.notes)}</div>` : ''}
+              </div>
+              <div style="text-align:right; flex-shrink:0;">
+                <div style="font-weight:600; font-variant-numeric:tabular-nums;">${n.calories || 0}</div>
+                <div style="font-size:10px; color:var(--text-faint);">kcal</div>
+                <button class="btn btn-sm" style="background:transparent; color:var(--danger); border:1px solid var(--border); margin-top:4px; padding:2px 8px; font-size:11px;" data-delete-nutrition="${n.id}">×</button>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>`;
+  });
+  list.innerHTML = html;
+
+  list.querySelectorAll('[data-delete-nutrition]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteNutritionEntry(btn.dataset.deleteNutrition);
+    });
+  });
+  list.querySelectorAll('[data-edit-nutrition]').forEach(row => {
+    row.addEventListener('click', () => openNutritionEntryModal(row.dataset.editNutrition));
+  });
+}
+
+// History: per-day rollups, newest first.
+function renderNutritionHistory() {
+  const list = $('#nutritionHistoryList');
+  if (!list) return;
+  const byDate = {};
+  state.nutritionLogs.forEach(n => {
+    if (!byDate[n.date]) byDate[n.date] = { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, count: 0 };
+    const d = byDate[n.date];
+    d.calories += n.calories || 0;
+    d.protein  += n.protein  || 0;
+    d.carbs    += n.carbs    || 0;
+    d.fat      += n.fat      || 0;
+    d.fiber    += n.fiber    || 0;
+    d.count    += 1;
+  });
+  const days = Object.entries(byDate).sort((a, b) => b[0].localeCompare(a[0]));
+  if (days.length === 0) {
+    list.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-faint); font-size:13px;">No nutrition history yet.</div>`;
+    return;
+  }
+  const t = state.nutritionTargets;
+  list.innerHTML = days.map(([date, d]) => {
+    const pct = t.calories > 0 ? Math.round((d.calories / t.calories) * 100) : 0;
+    const color = pct > 110 ? 'var(--danger)' : pct >= 90 ? 'var(--success)' : '#f59e0b';
+    return `
+      <div class="log-entry" style="margin-bottom:8px; cursor:pointer;" data-history-date="${date}">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;">
+          <div style="font-weight:600;">${formatDate(date)}</div>
+          <div style="font-size:11px; color:var(--text-faint);">${d.count} item${d.count === 1 ? '' : 's'}</div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size:12px; color:var(--text-dim);">P ${d.protein.toFixed(0)} · C ${d.carbs.toFixed(0)} · F ${d.fat.toFixed(0)}</div>
+          <div style="font-weight:600; font-variant-numeric:tabular-nums; color:${color};">${d.calories.toFixed(0)} <span style="font-size:11px; color:var(--text-faint); font-weight:400;">/ ${t.calories} kcal (${pct}%)</span></div>
+        </div>
+      </div>`;
+  }).join('');
+  list.querySelectorAll('[data-history-date]').forEach(row => {
+    row.addEventListener('click', () => {
+      nutritionDate = row.dataset.historyDate;
+      const inp = $('#nutritionDate');
+      if (inp) inp.value = formatDate(nutritionDate);
+      switchNutritionSubview('log');
+    });
+  });
+}
+
+// Modal open: if id supplied, populate with that entry (edit); otherwise blank.
+function openNutritionEntryModal(id) {
+  editingNutritionId = id || null;
+  const modal = $('#nutritionEntryModal');
+  const title = $('#nutritionEntryTitle');
+  if (id) {
+    const n = state.nutritionLogs.find(x => x.id === id);
+    if (!n) return;
+    title.textContent = 'Edit food';
+    $('#nutritionFoodName').value = n.foodName || '';
+    $('#nutritionMeal').value     = n.meal || defaultMealForNow();
+    $('#nutritionCalories').value = n.calories || '';
+    $('#nutritionProtein').value  = n.protein  || '';
+    $('#nutritionCarbs').value    = n.carbs    || '';
+    $('#nutritionFat').value      = n.fat      || '';
+    $('#nutritionFiber').value    = n.fiber    || '';
+    $('#nutritionNotes').value    = n.notes    || '';
+  } else {
+    title.textContent = 'Add food';
+    $('#nutritionFoodName').value = '';
+    $('#nutritionMeal').value     = defaultMealForNow();
+    $('#nutritionCalories').value = '';
+    $('#nutritionProtein').value  = '';
+    $('#nutritionCarbs').value    = '';
+    $('#nutritionFat').value      = '';
+    $('#nutritionFiber').value    = '';
+    $('#nutritionNotes').value    = '';
+  }
+  modal.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => $('#nutritionFoodName').focus(), 50);
+}
+
+function closeNutritionEntryModal() {
+  $('#nutritionEntryModal').style.display = 'none';
+  document.body.style.overflow = '';
+  editingNutritionId = null;
+}
+
+function saveNutritionEntry() {
+  const foodName = $('#nutritionFoodName').value.trim();
+  if (!foodName) { showToast('Food name is required', 'error'); $('#nutritionFoodName').focus(); return; }
+  const num = (sel) => {
+    const v = parseFloat($(sel).value);
+    return isFinite(v) ? v : 0;
+  };
+  const entry = {
+    foodName,
+    meal:     $('#nutritionMeal').value,
+    calories: num('#nutritionCalories'),
+    protein:  num('#nutritionProtein'),
+    carbs:    num('#nutritionCarbs'),
+    fat:      num('#nutritionFat'),
+    fiber:    num('#nutritionFiber'),
+    notes:    $('#nutritionNotes').value.trim(),
+  };
+  if (editingNutritionId) {
+    const idx = state.nutritionLogs.findIndex(n => n.id === editingNutritionId);
+    if (idx !== -1) {
+      state.nutritionLogs[idx] = { ...state.nutritionLogs[idx], ...entry };
+    }
+  } else {
+    state.nutritionLogs.push({
+      id: 'N' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      date: nutritionDate,
+      createdAt: new Date().toISOString(),
+      ...entry,
+    });
+  }
+  saveNutritionState();
+  closeNutritionEntryModal();
+  renderNutritionLog();
+  showToast(editingNutritionId ? 'Updated' : 'Added "' + foodName + '"');
+}
+
+function deleteNutritionEntry(id) {
+  const n = state.nutritionLogs.find(x => x.id === id);
+  if (!n) return;
+  if (!confirm('Delete "' + n.foodName + '"?')) return;
+  state.nutritionLogs = state.nutritionLogs.filter(x => x.id !== id);
+  saveNutritionState();
+  renderNutritionLog();
+}
+
+// ---- Targets calculator ----
+function openTargetsModal() {
+  const t = state.nutritionTargets;
+  $('#tgtSex').value      = t.sex || 'M';
+  $('#tgtAge').value      = t.age || 30;
+  $('#tgtHeight').value   = t.heightCm || 175;
+  $('#tgtWeight').value   = t.weightKg || 75;
+  $('#tgtActivity').value = t.activity || 'moderate';
+  $('#tgtGoal').value     = t.goal || 'maintain';
+  $('#tgtCalories').value = t.calories;
+  $('#tgtProtein').value  = t.protein;
+  $('#tgtCarbs').value    = t.carbs;
+  $('#tgtFat').value      = t.fat;
+  $('#tgtFiber').value    = t.fiber;
+  $('#nutritionTargetsModal').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeTargetsModal() {
+  $('#nutritionTargetsModal').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+// Mifflin-St Jeor + TDEE multiplier + goal adjustment + macro split.
+function computeTargetsFromInputs(sex, age, heightCm, weightKg, activity, goal) {
+  const bmr = sex === 'F'
+    ? 10 * weightKg + 6.25 * heightCm - 5 * age - 161
+    : 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
+  const mult = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very: 1.9 }[activity] || 1.55;
+  const tdee = bmr * mult;
+  const goalAdj = { lose: -500, maintain: 0, gain: 300 }[goal] || 0;
+  const calories = Math.round(tdee + goalAdj);
+  // Macros: 2g/kg protein, 25% kcal from fat, rest carbs. Fiber 14g/1000kcal.
+  const protein = Math.round(2 * weightKg);
+  const fat     = Math.round((calories * 0.25) / 9);
+  const carbs   = Math.max(0, Math.round((calories - protein * 4 - fat * 9) / 4));
+  const fiber   = Math.round((calories / 1000) * 14);
+  return { calories, protein, carbs, fat, fiber };
+}
+
+function recalcTargetsFromUI() {
+  const sex      = $('#tgtSex').value;
+  const age      = parseInt($('#tgtAge').value, 10) || 30;
+  const heightCm = parseFloat($('#tgtHeight').value) || 175;
+  const weightKg = parseFloat($('#tgtWeight').value) || 75;
+  const activity = $('#tgtActivity').value;
+  const goal     = $('#tgtGoal').value;
+  const r = computeTargetsFromInputs(sex, age, heightCm, weightKg, activity, goal);
+  $('#tgtCalories').value = r.calories;
+  $('#tgtProtein').value  = r.protein;
+  $('#tgtCarbs').value    = r.carbs;
+  $('#tgtFat').value      = r.fat;
+  $('#tgtFiber').value    = r.fiber;
+  showToast('Calculated: ' + r.calories + ' kcal · ' + r.protein + 'P / ' + r.carbs + 'C / ' + r.fat + 'F');
+}
+
+function saveTargetsFromUI() {
+  const num = (sel, def) => {
+    const v = parseFloat($(sel).value);
+    return isFinite(v) && v >= 0 ? v : def;
+  };
+  state.nutritionTargets = {
+    sex:      $('#tgtSex').value,
+    age:      parseInt($('#tgtAge').value, 10) || 30,
+    heightCm: num('#tgtHeight', 175),
+    weightKg: num('#tgtWeight', 75),
+    activity: $('#tgtActivity').value,
+    goal:     $('#tgtGoal').value,
+    calories: Math.round(num('#tgtCalories', 2000)),
+    protein:  Math.round(num('#tgtProtein',  150)),
+    carbs:    Math.round(num('#tgtCarbs',    200)),
+    fat:      Math.round(num('#tgtFat',      65)),
+    fiber:    Math.round(num('#tgtFiber',    25)),
+  };
+  saveNutritionState();
+  closeTargetsModal();
+  updateSettingsTargetsSummary();
+  if (state.currentView === 'nutrition') renderNutritionLog();
+  showToast('Targets saved');
+}
+
+function updateSettingsTargetsSummary() {
+  const el = $('#settingsTargetsSummary');
+  if (!el) return;
+  const t = state.nutritionTargets;
+  el.innerHTML = `<strong>${t.calories}</strong> kcal · <strong>${t.protein}</strong>g protein · <strong>${t.carbs}</strong>g carbs · <strong>${t.fat}</strong>g fat · <strong>${t.fiber}</strong>g fiber`;
+}
+
+// ============================================================
 // ============================================================
 // SUPABASE INTEGRATION
 // ============================================================
@@ -9644,7 +10232,9 @@ const SUPABASE_KEY = 'sb_publishable_iFnuDCy0fkPR4neO2L_Tgw_T6oX5pk9';
 let sb = null;                      // Supabase client (null before init)
 let currentUser = null;             // { id, email } once logged in
 let lastSyncedIds = new Set();      // ids known to exist on the server
+let lastSyncedNutritionIds = new Set();  // same, but for nutrition log rows
 let pendingSync = null;             // in-flight sync promise (dedup)
+let pendingNutritionSync = null;    // in-flight nutrition sync promise (dedup)
 
 function showSyncBanner(msg) {
   const b = $('#syncBanner');
@@ -9703,6 +10293,70 @@ function customActivityToRow(a) {
   };
 }
 
+// ---- Nutrition sync (type = 'nutrition' | 'nutrition_targets') ----
+// Per-food entries live as type='nutrition' rows with the date column populated
+// (so we can query "today's intake" with an indexed range). Targets are a
+// single row per user with id='nutrition_targets_<user_id>' (deterministic so
+// upserts work) and a sentinel date.
+function nutritionLogToRow(n) {
+  const { id, date, ...rest } = n;
+  return {
+    id,
+    user_id: currentUser.id,
+    type: 'nutrition',
+    date,
+    data: rest,
+    updated_at: new Date().toISOString(),
+  };
+}
+function rowToNutritionLog(row) {
+  return { id: row.id, date: row.date, ...(row.data || {}) };
+}
+function nutritionTargetsToRow(t) {
+  return {
+    id: 'nutrition_targets_' + currentUser.id,
+    user_id: currentUser.id,
+    type: 'nutrition_targets',
+    date: '1970-01-01',
+    data: t,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+// Push nutrition logs + targets to Supabase. Same diff-based pattern as
+// syncToRemote: deletes anything that vanished locally since last sync.
+async function syncNutritionToRemote() {
+  if (!sb || !currentUser) return;
+  if (pendingNutritionSync) return pendingNutritionSync;
+
+  pendingNutritionSync = (async () => {
+    const localIds = new Set(state.nutritionLogs.map(n => n.id));
+    const toDelete = [...lastSyncedNutritionIds].filter(id => !localIds.has(id));
+
+    const logRows = state.nutritionLogs.map(nutritionLogToRow);
+    const allRows = [...logRows, nutritionTargetsToRow(state.nutritionTargets)];
+
+    if (allRows.length) {
+      const { error } = await sb.from('workouts').upsert(allRows);
+      if (error) throw error;
+    }
+    if (toDelete.length) {
+      const { error } = await sb.from('workouts').delete()
+        .eq('user_id', currentUser.id).in('id', toDelete);
+      if (error) throw error;
+    }
+    lastSyncedNutritionIds = localIds;
+  })();
+
+  try { await pendingNutritionSync; }
+  finally { pendingNutritionSync = null; }
+}
+
+function saveNutritionState() {
+  saveStateLocal();
+  syncNutritionToRemote().catch(err => console.warn('Nutrition sync failed:', err));
+}
+
 // Upsert all current custom definitions to Supabase. Called after every
 // add/delete so other devices get the change on their next pull.
 async function syncCustomToRemote() {
@@ -9743,11 +10397,14 @@ async function pullFromRemote() {
     .order('date', { ascending: false });
   if (error) throw error;
 
-  // Separate workout logs from custom definitions (same table, different type).
+  // Separate workout logs from custom definitions and nutrition rows.
   const rows = data || [];
-  const logRows    = rows.filter(r => r.type !== 'custom_exercise' && r.type !== 'custom_activity');
+  const META_TYPES = new Set(['custom_exercise', 'custom_activity', 'nutrition', 'nutrition_targets']);
+  const logRows       = rows.filter(r => !META_TYPES.has(r.type));
   const customExRows  = rows.filter(r => r.type === 'custom_exercise');
   const customActRows = rows.filter(r => r.type === 'custom_activity');
+  const nutritionRows = rows.filter(r => r.type === 'nutrition');
+  const targetsRow    = rows.find(r => r.type === 'nutrition_targets');
 
   state.logs             = logRows.map(rowToLog);
   // Only overwrite local custom definitions when Supabase actually has rows.
@@ -9755,8 +10412,13 @@ async function pullFromRemote() {
   // pullFromRemote from wiping exercises/activities that only exist locally.
   if (customExRows.length > 0)  state.customExercises  = customExRows.map(r => r.data);
   if (customActRows.length > 0) state.customActivities = customActRows.map(r => r.data);
+  if (nutritionRows.length > 0) state.nutritionLogs    = nutritionRows.map(rowToNutritionLog);
+  if (targetsRow && targetsRow.data) {
+    state.nutritionTargets = { ...DEFAULT_NUTRITION_TARGETS, ...targetsRow.data };
+  }
 
   lastSyncedIds = new Set(state.logs.map(l => l.id));
+  lastSyncedNutritionIds = new Set(state.nutritionLogs.map(n => n.id));
   saveStateLocal();
   return state.logs.length;
 }// Push local changes (additions + deletions) to Supabase.
@@ -10609,6 +11271,37 @@ async function init() {
   $$('.cardio-subtab').forEach(t => {
     t.addEventListener('click', () => switchCardioSubview(t.dataset.cardioView));
   });
+
+  // ---- NUTRITION ----
+  $$('.nutrition-subtab').forEach(t => {
+    t.addEventListener('click', () => switchNutritionSubview(t.dataset.nutritionView));
+  });
+
+  if ($('#nutritionDate')) {
+    $('#nutritionDate').value = todayISO();
+    $('#nutritionDate').addEventListener('change', (e) => {
+      const v = e.target.value;
+      if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+        nutritionDate = v;
+        renderNutritionLog();
+      }
+    });
+  }
+
+  $('#nutritionAddManualBtn').addEventListener('click', () => openNutritionEntryModal(null));
+  $('#nutritionEntryClose').addEventListener('click', closeNutritionEntryModal);
+  $('#nutritionEntryCancelBtn').addEventListener('click', closeNutritionEntryModal);
+  $('#nutritionEntrySaveBtn').addEventListener('click', saveNutritionEntry);
+
+  // Targets modal (opened from Settings)
+  $('#openTargetsBtn').addEventListener('click', openTargetsModal);
+  $('#nutritionTargetsClose').addEventListener('click', closeTargetsModal);
+  $('#tgtCancelBtn').addEventListener('click', closeTargetsModal);
+  $('#tgtCalcBtn').addEventListener('click', recalcTargetsFromUI);
+  $('#tgtSaveBtn').addEventListener('click', saveTargetsFromUI);
+
+  // Initial render of the Settings summary line
+  updateSettingsTargetsSummary();
 
   // Cardio: log defaults
   $('#cardioDate').value = todayISO();
