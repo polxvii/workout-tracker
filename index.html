@@ -2039,13 +2039,18 @@ select {
     <div id="barcodeStatus" style="font-size:12px; color:var(--text-dim); margin-bottom:8px; min-height:18px;">Point your camera at a product barcode</div>
 
     <!-- Camera viewport with scan-line overlay -->
-    <div id="barcodeViewport" style="position:relative; background:#000; border-radius:8px; overflow:hidden; aspect-ratio:4/3; margin-bottom:10px;">
+    <div id="barcodeViewport" style="position:relative; background:#000; border-radius:8px; overflow:hidden; aspect-ratio:4/3; margin-bottom:8px;">
       <video id="barcodeVideo" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover; display:block;"></video>
       <!-- Centered framing guide -->
       <div style="position:absolute; inset:0; pointer-events:none; display:flex; align-items:center; justify-content:center;">
         <div style="width:80%; height:30%; border:2px solid rgba(255,255,255,0.6); border-radius:8px; box-shadow:0 0 0 9999px rgba(0,0,0,0.35);"></div>
       </div>
     </div>
+
+    <!-- Always-visible switch to manual entry — useful in low light or for non-standard codes -->
+    <button type="button" id="barcodeUseManualBtn" style="display:block; width:100%; padding:10px; margin-bottom:10px; background:transparent; border:1px dashed var(--border); color:var(--text-dim); border-radius:8px; font-size:13px; cursor:pointer;">
+      ✍️ Can't scan? Type the digits instead
+    </button>
 
     <!-- Fallback: manual barcode entry if camera/detector unavailable -->
     <div id="barcodeFallback" style="display:none; margin-bottom:10px; padding:14px; background:var(--surface-2); border-radius:8px;">
@@ -10555,12 +10560,16 @@ async function openBarcodeModal() {
   $('#barcodeResult').innerHTML = '';
   $('#barcodeFallback').style.display = 'none';
   $('#barcodeManualInput').value = '';
+  // "Type instead" button is visible by default whenever we attempt camera mode
+  const useManualBtn = $('#barcodeUseManualBtn');
+  if (useManualBtn) useManualBtn.style.display = 'block';
   barcodeBusy = false;
 
   // Camera-less browsers: skip directly to manual entry
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     $('#barcodeStatus').textContent = '⚠️ Camera not available on this browser. Type the barcode digits below.';
     $('#barcodeViewport').style.display = 'none';
+    $('#barcodeUseManualBtn').style.display = 'none';
     $('#barcodeFallback').style.display = 'block';
     return;
   }
@@ -10580,6 +10589,7 @@ async function openBarcodeModal() {
   } catch (err) {
     $('#barcodeStatus').textContent = '⚠️ Camera unavailable (' + (err.message || err.name) + '). Type the barcode manually.';
     $('#barcodeViewport').style.display = 'none';
+    $('#barcodeUseManualBtn').style.display = 'none';
     $('#barcodeFallback').style.display = 'block';
     return;
   }
@@ -10618,6 +10628,7 @@ async function openBarcodeModal() {
     $('#barcodeStatus').textContent = '⚠️ Live scanner unavailable (' + (e.message || e) + '). Type the barcode manually.';
     stopBarcodeScan();
     $('#barcodeViewport').style.display = 'none';
+    $('#barcodeUseManualBtn').style.display = 'none';
     $('#barcodeFallback').style.display = 'block';
   }
 }
@@ -12214,6 +12225,15 @@ async function init() {
   // Barcode scanner (v1.12)
   $('#nutritionAddBarcodeBtn').addEventListener('click', openBarcodeModal);
   $('#barcodeClose').addEventListener('click', closeBarcodeModal);
+  // "Type instead" — stops the camera mid-scan and reveals the manual input
+  $('#barcodeUseManualBtn').addEventListener('click', () => {
+    stopBarcodeScan();
+    $('#barcodeViewport').style.display = 'none';
+    $('#barcodeUseManualBtn').style.display = 'none';
+    $('#barcodeFallback').style.display = 'block';
+    $('#barcodeStatus').textContent = 'Type the barcode digits below.';
+    setTimeout(() => $('#barcodeManualInput').focus(), 80);
+  });
   $('#barcodeManualLookupBtn').addEventListener('click', () => {
     const raw = ($('#barcodeManualInput').value || '').replace(/\D/g, '');
     if (!/^\d{8,14}$/.test(raw)) { showToast('Enter 8-14 digits', 'error'); return; }
