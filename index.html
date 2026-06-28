@@ -2004,29 +2004,23 @@ select {
       </select>
     </div>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-      <div class="form-group">
-        <label for="nutritionCalories">Calories (kcal)</label>
-        <input type="number" id="nutritionCalories" inputmode="numeric" min="0" step="1" placeholder="0">
-      </div>
-      <div class="form-group">
-        <label for="nutritionProtein">Protein (g)</label>
-        <input type="number" id="nutritionProtein" inputmode="decimal" min="0" step="0.1" placeholder="0">
-      </div>
+    <div class="form-group">
+      <label for="nutritionCalories">Calories (kcal)</label>
+      <input type="number" id="nutritionCalories" inputmode="numeric" min="0" step="1" placeholder="0">
     </div>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
       <div class="form-group">
         <label for="nutritionCarbs">Carbs (g)</label>
         <input type="number" id="nutritionCarbs" inputmode="decimal" min="0" step="0.1" placeholder="0">
       </div>
       <div class="form-group">
+        <label for="nutritionProtein">Protein (g)</label>
+        <input type="number" id="nutritionProtein" inputmode="decimal" min="0" step="0.1" placeholder="0">
+      </div>
+      <div class="form-group">
         <label for="nutritionFat">Fat (g)</label>
         <input type="number" id="nutritionFat" inputmode="decimal" min="0" step="0.1" placeholder="0">
       </div>
-    </div>
-    <div class="form-group">
-      <label for="nutritionFiber">Fiber (g) <span style="color:var(--text-faint); font-weight:400;">— optional</span></label>
-      <input type="number" id="nutritionFiber" inputmode="decimal" min="0" step="0.1" placeholder="0">
     </div>
     <div class="form-group">
       <label for="nutritionNotes">Notes <span style="color:var(--text-faint); font-weight:400;">— optional</span></label>
@@ -2090,13 +2084,13 @@ select {
         <option value="lose0.5">🔻 Lose 0.5 kg/week — recommended cut</option>
         <option value="lose0.25">🔻 Lose 0.25 kg/week — lean cut</option>
         <option value="maintain">➖ Maintain weight</option>
-        <option value="gain0.25">🔺 Gain 0.25 kg/week — lean bulk</option>
-        <option value="gain0.5">🔺 Gain 0.5 kg/week — faster bulk</option>
+        <option value="gain0.25">🟢 Gain 0.25 kg/week — lean bulk</option>
+        <option value="gain0.5">🟢 Gain 0.5 kg/week — faster bulk</option>
       </select>
       <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">1 kg body fat ≈ 7,700 kcal — kcal adjustment is derived from your rate.</div>
     </div>
 
-    <button class="btn btn-secondary" id="tgtCalcBtn" type="button" style="width:100%; margin-bottom:14px;">⚡ Calculate from my stats</button>
+    <button class="btn" id="tgtCalcBtn" type="button" style="width:100%; margin-bottom:14px; background:linear-gradient(135deg, #8b5cf6, #6366f1); color:#fff; border:none; font-weight:600; font-size:14px; padding:12px; box-shadow:0 2px 8px rgba(99,102,241,0.35);">🧮 Calculate targets from my stats</button>
 
     <div style="border-top:1px solid var(--border); padding-top:12px; margin-bottom:8px; font-size:13px; font-weight:600; color:var(--text-dim);">Daily targets</div>
 
@@ -2114,19 +2108,19 @@ select {
       <button type="button" class="pill tgt-preset" data-preset="keto">Keto 5/25/70</button>
     </div>
 
-    <!-- Macro grid: grams ↔ % two-way binding -->
+    <!-- Macro grid: grams ↔ % two-way binding (C/P/F order to match preset labels) -->
     <label style="margin-bottom:4px;">Macros (edit grams OR % — the other updates)</label>
     <div style="display:grid; grid-template-columns:auto 1fr auto 1fr auto; gap:6px 8px; align-items:center; margin-bottom:6px; font-size:12px;">
-      <div style="color:var(--text-dim);">Protein</div>
-      <input type="number" id="tgtProtein" inputmode="numeric" min="0" step="1" style="text-align:right;">
-      <div style="color:var(--text-faint);">g</div>
-      <input type="number" id="tgtProteinPct" inputmode="numeric" min="0" max="100" step="1" style="text-align:right;">
-      <div style="color:var(--text-faint);">%</div>
-
       <div style="color:var(--text-dim);">Carbs</div>
       <input type="number" id="tgtCarbs" inputmode="numeric" min="0" step="1" style="text-align:right;">
       <div style="color:var(--text-faint);">g</div>
       <input type="number" id="tgtCarbsPct" inputmode="numeric" min="0" max="100" step="1" style="text-align:right;">
+      <div style="color:var(--text-faint);">%</div>
+
+      <div style="color:var(--text-dim);">Protein</div>
+      <input type="number" id="tgtProtein" inputmode="numeric" min="0" step="1" style="text-align:right;">
+      <div style="color:var(--text-faint);">g</div>
+      <input type="number" id="tgtProteinPct" inputmode="numeric" min="0" max="100" step="1" style="text-align:right;">
       <div style="color:var(--text-faint);">%</div>
 
       <div style="color:var(--text-dim);">Fat</div>
@@ -2136,11 +2130,6 @@ select {
       <div style="color:var(--text-faint);">%</div>
     </div>
     <div id="tgtRatioWarn" style="font-size:11px; margin-bottom:10px; text-align:right;">Total: <span id="tgtRatioSum">100</span>%</div>
-
-    <div class="form-group">
-      <label for="tgtFiber">Fiber (g)</label>
-      <input type="number" id="tgtFiber" inputmode="numeric" min="0" step="1">
-    </div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
       <button class="btn btn-secondary" id="tgtCancelBtn" type="button">Cancel</button>
@@ -9936,11 +9925,10 @@ function renderNutritionDailySummary() {
         <div style="font-weight:600; font-size:14px;">Daily summary</div>
         <div style="font-size:11px; color:var(--text-faint);">${entries.length} item${entries.length === 1 ? '' : 's'}</div>
       </div>
-      ${bar('Calories', sum.calories, t.calories, '#3b82f6')}
-      ${bar('Protein (g)', sum.protein, t.protein, '#10b981')}
-      ${bar('Carbs (g)',   sum.carbs,   t.carbs,   '#f59e0b')}
-      ${bar('Fat (g)',     sum.fat,     t.fat,     '#ec4899')}
-      ${bar('Fiber (g)',   sum.fiber,   t.fiber,   '#8b5cf6')}
+      ${bar('Calories',    sum.calories, t.calories, '#3b82f6')}
+      ${bar('Carbs (g)',   sum.carbs,    t.carbs,    '#f59e0b')}
+      ${bar('Protein (g)', sum.protein,  t.protein,  '#10b981')}
+      ${bar('Fat (g)',     sum.fat,      t.fat,      '#ec4899')}
     </div>`;
 }
 
@@ -9978,7 +9966,7 @@ function renderNutritionLog() {
               <div style="flex:1; min-width:0;">
                 <div style="font-weight:600; font-size:14px;">${escapeHtml(n.foodName || '(unnamed)')}</div>
                 <div style="font-size:12px; color:var(--text-faint); margin-top:2px;">
-                  P ${(n.protein || 0).toFixed(1)}g · C ${(n.carbs || 0).toFixed(1)}g · F ${(n.fat || 0).toFixed(1)}g${n.fiber ? ' · Fb ' + (n.fiber).toFixed(1) + 'g' : ''}
+                  C ${(n.carbs || 0).toFixed(1)}g · P ${(n.protein || 0).toFixed(1)}g · F ${(n.fat || 0).toFixed(1)}g
                 </div>
                 ${n.notes ? `<div style="font-size:11px; color:var(--text-faint); margin-top:3px; font-style:italic;">${escapeHtml(n.notes)}</div>` : ''}
               </div>
@@ -10036,7 +10024,7 @@ function renderNutritionHistory() {
           <div style="font-size:11px; color:var(--text-faint);">${d.count} item${d.count === 1 ? '' : 's'}</div>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div style="font-size:12px; color:var(--text-dim);">P ${d.protein.toFixed(0)} · C ${d.carbs.toFixed(0)} · F ${d.fat.toFixed(0)}</div>
+          <div style="font-size:12px; color:var(--text-dim);">C ${d.carbs.toFixed(0)} · P ${d.protein.toFixed(0)} · F ${d.fat.toFixed(0)}</div>
           <div style="font-weight:600; font-variant-numeric:tabular-nums; color:${color};">${d.calories.toFixed(0)} <span style="font-size:11px; color:var(--text-faint); font-weight:400;">/ ${t.calories} kcal (${pct}%)</span></div>
         </div>
       </div>`;
@@ -10066,7 +10054,6 @@ function openNutritionEntryModal(id) {
     $('#nutritionProtein').value  = n.protein  || '';
     $('#nutritionCarbs').value    = n.carbs    || '';
     $('#nutritionFat').value      = n.fat      || '';
-    $('#nutritionFiber').value    = n.fiber    || '';
     $('#nutritionNotes').value    = n.notes    || '';
   } else {
     title.textContent = 'Add food';
@@ -10076,7 +10063,6 @@ function openNutritionEntryModal(id) {
     $('#nutritionProtein').value  = '';
     $('#nutritionCarbs').value    = '';
     $('#nutritionFat').value      = '';
-    $('#nutritionFiber').value    = '';
     $('#nutritionNotes').value    = '';
   }
   modal.style.display = 'block';
@@ -10104,7 +10090,6 @@ function saveNutritionEntry() {
     protein:  num('#nutritionProtein'),
     carbs:    num('#nutritionCarbs'),
     fat:      num('#nutritionFat'),
-    fiber:    num('#nutritionFiber'),
     notes:    $('#nutritionNotes').value.trim(),
   };
   if (editingNutritionId) {
@@ -10148,7 +10133,6 @@ function openTargetsModal() {
   $('#tgtProtein').value  = t.protein;
   $('#tgtCarbs').value    = t.carbs;
   $('#tgtFat').value      = t.fat;
-  $('#tgtFiber').value    = t.fiber;
   syncPctFromGrams();
   $('#nutritionTargetsModal').style.display = 'block';
   document.body.style.overflow = 'hidden';
@@ -10257,7 +10241,6 @@ function recalcTargetsFromUI() {
   $('#tgtProtein').value  = r.protein;
   $('#tgtCarbs').value    = r.carbs;
   $('#tgtFat').value      = r.fat;
-  $('#tgtFiber').value    = r.fiber;
   syncPctFromGrams();
   showToast('Calculated: ' + r.calories + ' kcal · ' + r.protein + 'P / ' + r.carbs + 'C / ' + r.fat + 'F');
 }
@@ -10278,7 +10261,6 @@ function saveTargetsFromUI() {
     protein:  Math.round(num('#tgtProtein',  150)),
     carbs:    Math.round(num('#tgtCarbs',    200)),
     fat:      Math.round(num('#tgtFat',      65)),
-    fiber:    Math.round(num('#tgtFiber',    25)),
   };
   saveNutritionState();
   closeTargetsModal();
@@ -10299,10 +10281,9 @@ function updateSettingsTargetsSummary() {
   el.innerHTML = `
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; font-size:13px;">
       ${cell('Calories', t.calories, 'kcal')}
-      ${cell('Protein',  t.protein,  'g')}
       ${cell('Carbs',    t.carbs,    'g')}
+      ${cell('Protein',  t.protein,  'g')}
       ${cell('Fat',      t.fat,      'g')}
-      ${cell('Fiber',    t.fiber,    'g')}
     </div>`;
 }
 
