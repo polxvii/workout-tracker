@@ -2012,6 +2012,12 @@ select {
 
     <div id="nutritionSearchStatus" style="font-size:12px; color:var(--text-faint); margin-bottom:8px; min-height:18px;"></div>
 
+    <div id="nutritionSearchFilter" style="display:none; gap:6px; margin-bottom:8px;">
+      <button type="button" class="pill active" data-search-filter="all" style="flex:1; padding:6px 8px; font-size:12px;">All</button>
+      <button type="button" class="pill" data-search-filter="db" style="flex:1; padding:6px 8px; font-size:12px;">🟢 DB only</button>
+      <button type="button" class="pill" data-search-filter="ai" style="flex:1; padding:6px 8px; font-size:12px;">🟣 AI only</button>
+    </div>
+
     <div id="nutritionSearchResults" style="max-height:55vh; overflow-y:auto;"></div>
 
     <div style="font-size:11px; color:var(--text-faint); margin-top:10px; text-align:center; line-height:1.5;">
@@ -10185,6 +10191,8 @@ function deleteNutritionEntry(id) {
 let searchAbortController = null;
 let searchDebounceTimer = null;
 let searchTimedOut = false;  // distinguishes "user typed again" from "8s timeout"
+let lastSearchItems = [];    // keeps the unfiltered result set for re-filtering
+let searchFilterMode = 'all'; // 'all' | 'db' | 'ai'
 
 function openSearchModal() {
   $('#nutritionSearchModal').style.display = 'block';
@@ -10192,6 +10200,13 @@ function openSearchModal() {
   $('#nutritionSearchInput').value = '';
   $('#nutritionSearchResults').innerHTML = '';
   $('#nutritionSearchStatus').textContent = 'Type to search…';
+  $('#nutritionSearchFilter').style.display = 'none';
+  // Reset filter pills to "All" so each search session starts unfiltered
+  searchFilterMode = 'all';
+  lastSearchItems = [];
+  document.querySelectorAll('#nutritionSearchFilter .pill').forEach(x => {
+    x.classList.toggle('active', x.dataset.searchFilter === 'all');
+  });
   setTimeout(() => $('#nutritionSearchInput').focus(), 80);
 }
 
@@ -10200,6 +10215,7 @@ function closeSearchModal() {
   document.body.style.overflow = '';
   if (searchAbortController) { searchAbortController.abort(); searchAbortController = null; }
   if (searchDebounceTimer)   { clearTimeout(searchDebounceTimer); searchDebounceTimer = null; }
+  lastSearchItems = [];
 }
 
 // Worker proxy that calls Groq Llama 3.3 70B to estimate macros + serving sizes
@@ -10243,11 +10259,47 @@ async function runFoodSearch(query) {
 
     if (items.length === 0) {
       status.textContent = 'No results — try a different word, or use Manual entry.';
+      $('#nutritionSearchFilter').style.display = 'none';
       return;
     }
-    status.textContent = items.length + ' result' + (items.length === 1 ? '' : 's') + ' — AI-estimated, tap a row to adjust portion';
+    lastSearchItems = items;
+    $('#nutritionSearchFilter').style.display = 'flex';
+    renderSearchResults();
+  } catch (e) {
+    clearTimeout(timeoutId);
+    if (e.name === 'AbortError') {
+      if (searchTimedOut) {
+        status.textContent = '⏱ Search timed out. Try again, or use Manual entry.';
+      }
+      return;
+    }
+    status.textContent = '⚠ Search failed: ' + (e.message || e);
+  }
+}
 
-    resultsEl.innerHTML = items.map((it, i) => {
+// Renders lastSearchItems through the current filter (all / db / ai).
+function renderSearchResults() {
+  const status   = $('#nutritionSearchStatus');
+  const resultsEl = $('#nutritionSearchResults');
+  if (!resultsEl) return;
+  const items = lastSearchItems.filter(it => {
+    if (searchFilterMode === 'db') return it.source === 'OFF';
+    if (searchFilterMode === 'ai') return it.source !== 'OFF';
+    return true;
+  });
+  const totalCount = lastSearchItems.length;
+  const dbCount = lastSearchItems.filter(it => it.source === 'OFF').length;
+  const aiCount = totalCount - dbCount;
+  status.textContent =
+    items.length + ' shown / ' + totalCount + ' total · ' +
+    dbCount + ' DB · ' + aiCount + ' AI · tap to adjust portion';
+
+  if (items.length === 0) {
+    resultsEl.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-faint); font-size:13px;">No results in this filter. Try "All" or a different filter.</div>`;
+    return;
+  }
+
+  resultsEl.innerHTML = items.map((it, i) => {
       // Build the serving-unit dropdown: default first, then alts, then "g (custom)"
       const def = it.default_serving || { unit: 'serving', grams: 100 };
       const alts = Array.isArray(it.alt_servings) ? it.alt_servings : [];
@@ -10404,16 +10456,6 @@ async function runFoodSearch(query) {
         showToast('Added ' + portionLabel + ' of ' + it.name.slice(0, 30));
       });
     });
-  } catch (e) {
-    clearTimeout(timeoutId);
-    if (e.name === 'AbortError') {
-      if (searchTimedOut) {
-        status.textContent = '⏱ Search timed out. Try again, or use Manual entry.';
-      }
-      return;
-    }
-    status.textContent = '⚠ Search failed: ' + (e.message || e);
-  }
 }
 
 // ---- Targets calculator ----
@@ -11688,6 +11730,16 @@ async function init() {
     const q = e.target.value;
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => runFoodSearch(q), 400);
+  });
+
+  // Source filter pills (All / DB / AI). Re-renders existing results, no re-fetch.
+  document.querySelectorAll('#nutritionSearchFilter .pill').forEach(p => {
+    p.addEventListener('click', () => {
+      document.querySelectorAll('#nutritionSearchFilter .pill').forEach(x => x.classList.remove('active'));
+      p.classList.add('active');
+      searchFilterMode = p.dataset.searchFilter;
+      if (lastSearchItems.length) renderSearchResults();
+    });
   });
 
   // Targets modal (opened from Settings)
