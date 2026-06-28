@@ -10337,13 +10337,26 @@ function renderSearchResults() {
   }
 
   resultsEl.innerHTML = items.map((it, i) => {
-      // Build the serving-unit dropdown: default first, then alts, then custom
-      const def = it.default_serving || { unit: 'serving', grams: 100 };
+      // Build the serving-unit dropdown: default first, then alts, then custom.
+      let def = it.default_serving || { unit: 'serving', grams: 100 };
+      // Drink heuristic combines three signals so we catch both DB (with quantity
+      // string) and AI (with unit name) results. ml ≈ g for nutrition math.
+      let isLiquid = /(beer|ale|\bipa\b|lager|stout|wine|cider|sake|cola|soda|juice|milk|smoothie|drink|beverage|tea|coffee|water|nectar|kombucha|cocktail|lemonade|whisky|vodka|gin|rum)/i.test(it.name || '')
+                  || /(ml|cl|L)\b/i.test(it.quantity || '')
+                  || /(can|bottle|glass)/i.test(def.unit || '');
+      // For OFF results with a real quantity string ("330ml", "60g"), replace the
+      // hardcoded "1 serving (100g)" default with the actual package size.
+      if (it.source === 'OFF' && it.quantity) {
+        const parsedG = parseSizeToGrams(it.quantity);
+        if (parsedG && parsedG > 0) {
+          const unitName = isLiquid
+            ? (parsedG <= 350 ? 'can' : 'bottle')
+            : 'pack';
+          def = { unit: unitName, grams: parsedG };
+        }
+      }
       const alts = Array.isArray(it.alt_servings) ? it.alt_servings : [];
       const allServings = [def, ...alts];
-      // Drink heuristic: if the name reads as a beverage, display ml everywhere
-      // (ml ≈ g for nutrition math; pure label change so the entry feels right).
-      const isLiquid = /(beer|ale|\bipa\b|lager|stout|wine|cider|sake|cola|soda|juice|milk|smoothie|drink|beverage|tea|coffee|water|nectar|kombucha|cocktail|lemonade|whisky|vodka|gin|rum)/i.test(it.name || '');
       const unitLabel = isLiquid ? 'ml' : 'g';
       const unitOpts = allServings.map((s, j) =>
         `<option value="${j}" data-grams="${s.grams}">1 ${escapeHtml(s.unit)} (${s.grams}${unitLabel})</option>`
@@ -10471,7 +10484,7 @@ function renderSearchResults() {
         // Build the entry's display name with portion info
         let portionLabel;
         if (unitSel.value === 'custom') {
-          portionLabel = Math.round(g) + 'g';
+          portionLabel = Math.round(g) + unitLabel;
         } else {
           const idx = +unitSel.value;
           const s = allServings[idx];
