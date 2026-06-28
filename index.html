@@ -10665,12 +10665,28 @@ async function lookupBarcode(code) {
       $('#barcodeStatus').textContent = '❌ Barcode ' + code + ' not found in database.';
       $('#barcodeResult').style.display = 'block';
       $('#barcodeResult').innerHTML = `
-        <div class="log-entry" style="text-align:center;">
-          <div style="font-size:13px; margin-bottom:8px;">This product isn't in Open Food Facts yet.</div>
-          <div style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">You can enter it manually — open the Manual tile after closing this.</div>
-          <button type="button" class="btn btn-secondary" id="barcodeRescanBtn">📦 Scan again</button>
+        <div class="log-entry">
+          <div style="font-size:13px; margin-bottom:6px; font-weight:600;">Product not in OFF database.</div>
+          <div style="font-size:11px; color:var(--text-faint); margin-bottom:10px; line-height:1.4;">Type the product name printed on the package — AI will estimate the nutrition.</div>
+          <input type="text" id="barcodeFallbackName" placeholder="e.g. Pocky strawberry, Lay's seaweed" autocomplete="off" style="width:100%; padding:12px; font-size:16px; min-height:44px; margin-bottom:10px;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <button type="button" class="btn btn-secondary" id="barcodeRescanBtn">↻ Scan again</button>
+            <button type="button" class="btn btn-primary" id="barcodeSearchAiBtn">🔎 Search with AI</button>
+          </div>
         </div>`;
       $('#barcodeRescanBtn').addEventListener('click', () => { openBarcodeModal(); });
+      const nameInp = $('#barcodeFallbackName');
+      const triggerSearch = () => {
+        const q = (nameInp.value || '').trim();
+        if (q.length < 2) { showToast('Type the product name first', 'error'); nameInp.focus(); return; }
+        closeBarcodeModal();
+        openSearchModal();
+        $('#nutritionSearchInput').value = q;
+        runFoodSearch(q);
+      };
+      $('#barcodeSearchAiBtn').addEventListener('click', triggerSearch);
+      nameInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); triggerSearch(); } });
+      setTimeout(() => nameInp.focus(), 80);
       return;
     }
 
