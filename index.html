@@ -10652,7 +10652,7 @@ async function lookupBarcode(code) {
   $('#barcodeResult').style.display = 'none';
 
   try {
-    const fields = 'product_name,product_name_en,product_name_th,brands,quantity,nutriments,image_url,image_thumb_url';
+    const fields = 'product_name,product_name_en,product_name_th,brands,quantity,serving_size,serving_quantity,nutriments,image_url,image_thumb_url';
     const url = 'https://world.openfoodfacts.org/api/v2/product/' + code + '.json?fields=' + fields;
     const c = new AbortController();
     const tid = setTimeout(() => c.abort(), 8000);
@@ -10686,6 +10686,24 @@ async function lookupBarcode(code) {
   }
 }
 
+// Parse OFF size strings ("60 g", "330 ml", "120g x 4", "1 L") into grams.
+// Returns null if unparseable. Treats ml ≈ g for purposes of nutrition tracking
+// (slightly off for fats and dense liquids, but accurate enough for portions).
+function parseSizeToGrams(s) {
+  if (!s || typeof s !== 'string') return null;
+  // Strip multi-pack notation ("x 4", "× 2") — we want a single-unit size
+  const clean = s.replace(/[x×]\s*\d+/gi, '').trim();
+  const m = clean.match(/(\d+(?:[.,]\d+)?)\s*(kg|g|l|ml|cl)/i);
+  if (!m) return null;
+  const val = parseFloat(m[1].replace(',', '.'));
+  const unit = m[2].toLowerCase();
+  if (!isFinite(val) || val <= 0) return null;
+  if (unit === 'kg') return Math.round(val * 1000);
+  if (unit === 'l')  return Math.round(val * 1000);
+  if (unit === 'cl') return Math.round(val * 10);
+  return Math.round(val);  // g or ml
+}
+
 function renderBarcodeResult(code, p) {
   const n = p.nutriments || {};
   const numOrZero = (v) => typeof v === 'number' && isFinite(v) ? v : 0;
@@ -10710,6 +10728,27 @@ function renderBarcodeResult(code, p) {
   const image = p.image_url || p.image_thumb_url || '';
   const qty   = p.quantity || '';
 
+  // Figure out a sensible default portion. Priority:
+  // 1. serving_quantity (parsed number, OFF normalized field) — best
+  // 2. serving_size string ("30 g", "1 pack (60g)") — common
+  // 3. quantity string (full package weight, "60g", "330ml") — fallback
+  // 4. 100g
+  let servingG = null;
+  let packG    = null;
+  if (typeof p.serving_quantity === 'number' && p.serving_quantity > 0) {
+    servingG = Math.round(p.serving_quantity);
+  } else if (p.serving_size) {
+    servingG = parseSizeToGrams(p.serving_size);
+  }
+  if (qty) packG = parseSizeToGrams(qty);
+
+  const defaultG = servingG || packG || 100;
+  // Quick-select buttons: only show options that we actually detected
+  const quickPicks = [];
+  if (servingG) quickPicks.push({ label: '1 serving (' + servingG + 'g)', g: servingG });
+  if (packG && packG !== servingG) quickPicks.push({ label: 'Whole pack (' + packG + 'g)', g: packG });
+  quickPicks.push({ label: '100g', g: 100 });
+
   $('#barcodeStatus').textContent = '✓ Found — set portion and add to log';
   $('#barcodeResult').style.display = 'block';
   $('#barcodeResult').innerHTML = `
@@ -10728,10 +10767,17 @@ function renderBarcodeResult(code, p) {
         </div>
       </div>
 
+      ${quickPicks.length > 1 ? `
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+        ${quickPicks.map((qp, i) =>
+          `<button type="button" class="pill barcode-quick-pick${qp.g === defaultG ? ' active' : ''}" data-g="${qp.g}" style="padding:6px 10px; font-size:11px;">${escapeHtml(qp.label)}</button>`
+        ).join('')}
+      </div>` : ''}
+
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px;">
         <div>
           <label style="font-size:11px;">Portion (g)</label>
-          <input type="number" id="barcodePortionG" inputmode="numeric" min="1" step="1" value="100" style="width:100%;">
+          <input type="number" id="barcodePortionG" inputmode="numeric" min="1" step="1" value="${defaultG}" style="width:100%;">
         </div>
         <div>
           <label style="font-size:11px;">Meal</label>
@@ -10763,7 +10809,21 @@ function renderBarcodeResult(code, p) {
     preview.innerHTML = `<strong>${Math.round(per100.kcal * ratio)}</strong> kcal · C ${(per100.carbs * ratio).toFixed(1)} · P ${(per100.protein * ratio).toFixed(1)} · F ${(per100.fat * ratio).toFixed(1)} · ${Math.round(g)}g`;
   };
   recalcPreview();
-  portionInp.addEventListener('input', recalcPreview);
+  portionInp.addEventListener('input', () => {
+    // Manually typing a value clears the active quick-pick selection
+    document.querySelectorAll('.barcode-quick-pick').forEach(b => b.classList.remove('active'));
+    recalcPreview();
+  });
+
+  // Quick-pick chips: tap to fill portion + recompute preview
+  document.querySelectorAll('.barcode-quick-pick').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.barcode-quick-pick').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      portionInp.value = btn.dataset.g;
+      recalcPreview();
+    });
+  });
 
   $('#barcodeRescanBtn').addEventListener('click', () => openBarcodeModal());
   $('#barcodeCancelBtn').addEventListener('click', closeBarcodeModal);
