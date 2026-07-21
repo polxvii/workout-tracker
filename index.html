@@ -13,7 +13,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Workout Tracker</title>
-<meta name="app-version" content="1.12.5">
+<meta name="app-version" content="1.13">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
@@ -1265,7 +1265,7 @@ select {
         Your data is private. Only you can access it.
       </div>
       <div style="text-align:center; font-size:10px; color:var(--text-faint); margin-top:6px; opacity:0.7;">
-        v1.12.5
+        v1.13
       </div>
     </div>
   </div>
@@ -1325,7 +1325,7 @@ select {
 <nav class="tabs">
   <button class="tab active" data-view="strength">💪 Strength</button>
   <button class="tab" data-view="cardio">🏃 Cardio</button>
-  <button class="tab" data-view="nutrition">🍎 Nutrition</button>
+  <button class="tab" data-view="nutrition" style="display:none;">🍎 Nutrition</button>
   <button class="tab" data-view="exercises">📚 Library</button>
   <button class="tab" data-view="settings">⚙️ Settings</button>
 </nav>
@@ -1839,7 +1839,7 @@ select {
   <section class="view" id="view-settings">
 
     <!-- NUTRITION TARGETS -->
-    <div class="card">
+    <div class="card" style="display:none;">
       <div class="card-title">Nutrition targets</div>
       <div style="font-size:13px; color:var(--text-dim); margin-bottom:10px;">Daily intake goals used for the Nutrition tab progress bars.</div>
       <div id="settingsTargetsSummary" style="font-size:13px; color:var(--text); margin-bottom:12px; padding:10px; background:var(--surface-2); border-radius:6px;">—</div>
@@ -1915,7 +1915,7 @@ select {
 
     <!-- VERSION FOOTER -->
     <div style="text-align:center; padding:16px 0; font-size:11px; color:var(--text-faint);">
-      Workout Tracker v1.12.5
+      Workout Tracker v1.13
     </div>
 
   </section>
