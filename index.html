@@ -8198,7 +8198,7 @@ function switchView(view) {
     if (which === 'stretching') renderStretching();
     else renderLibrary();
   }
-  if (view === 'settings') { updateExportPreview(); updateSettingsTargetsSummary(); }
+  if (view === 'settings') { updateExportPreview(); }
   if (view === 'strength') {
     // Restore whichever strength sub-view the user last used
     switchStrengthSubview(strengthSubview);
@@ -11349,33 +11349,13 @@ function nutritionTargetsToRow(t) {
   };
 }
 
-// Push nutrition logs + targets to Supabase. Same diff-based pattern as
-// syncToRemote: deletes anything that vanished locally since last sync.
+// Nutrition moved to a separate app in v1.13. This app no longer writes
+// type='nutrition' / 'nutrition_targets' rows to Supabase, so the two apps
+// don't double-own the same rows. Kept as a no-op so existing callers in the
+// (now hidden) nutrition UI don't break. The nutritionLogToRow /
+// nutritionTargetsToRow helpers are left intact for reference.
 async function syncNutritionToRemote() {
-  if (!sb || !currentUser) return;
-  if (pendingNutritionSync) return pendingNutritionSync;
-
-  pendingNutritionSync = (async () => {
-    const localIds = new Set(state.nutritionLogs.map(n => n.id));
-    const toDelete = [...lastSyncedNutritionIds].filter(id => !localIds.has(id));
-
-    const logRows = state.nutritionLogs.map(nutritionLogToRow);
-    const allRows = [...logRows, nutritionTargetsToRow(state.nutritionTargets)];
-
-    if (allRows.length) {
-      const { error } = await sb.from('workouts').upsert(allRows);
-      if (error) throw error;
-    }
-    if (toDelete.length) {
-      const { error } = await sb.from('workouts').delete()
-        .eq('user_id', currentUser.id).in('id', toDelete);
-      if (error) throw error;
-    }
-    lastSyncedNutritionIds = localIds;
-  })();
-
-  try { await pendingNutritionSync; }
-  finally { pendingNutritionSync = null; }
+  return;
 }
 
 function saveNutritionState() {
@@ -11423,14 +11403,15 @@ async function pullFromRemote() {
     .order('date', { ascending: false });
   if (error) throw error;
 
-  // Separate workout logs from custom definitions and nutrition rows.
+  // Separate workout logs from custom definitions. Nutrition rows
+  // (type 'nutrition' / 'nutrition_targets') moved to a separate app in v1.13:
+  // still listed in META_TYPES so they're excluded from logRows, but no longer
+  // read into this app's state.
   const rows = data || [];
   const META_TYPES = new Set(['custom_exercise', 'custom_activity', 'nutrition', 'nutrition_targets']);
   const logRows       = rows.filter(r => !META_TYPES.has(r.type));
   const customExRows  = rows.filter(r => r.type === 'custom_exercise');
   const customActRows = rows.filter(r => r.type === 'custom_activity');
-  const nutritionRows = rows.filter(r => r.type === 'nutrition');
-  const targetsRow    = rows.find(r => r.type === 'nutrition_targets');
 
   state.logs             = logRows.map(rowToLog);
   // Only overwrite local custom definitions when Supabase actually has rows.
@@ -11438,13 +11419,8 @@ async function pullFromRemote() {
   // pullFromRemote from wiping exercises/activities that only exist locally.
   if (customExRows.length > 0)  state.customExercises  = customExRows.map(r => r.data);
   if (customActRows.length > 0) state.customActivities = customActRows.map(r => r.data);
-  if (nutritionRows.length > 0) state.nutritionLogs    = nutritionRows.map(rowToNutritionLog);
-  if (targetsRow && targetsRow.data) {
-    state.nutritionTargets = { ...DEFAULT_NUTRITION_TARGETS, ...targetsRow.data };
-  }
 
   lastSyncedIds = new Set(state.logs.map(l => l.id));
-  lastSyncedNutritionIds = new Set(state.nutritionLogs.map(n => n.id));
   saveStateLocal();
   return state.logs.length;
 }// Push local changes (additions + deletions) to Supabase.
@@ -12390,9 +12366,6 @@ async function init() {
   document.querySelectorAll('.tgt-preset').forEach(btn => {
     btn.addEventListener('click', () => applyMacroPreset(btn.dataset.preset));
   });
-
-  // Initial render of the Settings summary line
-  updateSettingsTargetsSummary();
 
   // Cardio: log defaults
   $('#cardioDate').value = todayISO();
