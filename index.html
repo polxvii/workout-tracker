@@ -1961,6 +1961,7 @@ select {
         <option value="Machine">Machine</option>
         <option value="Smith">Smith</option>
         <option value="Body Weight">Body Weight</option>
+        <option value="Kettlebell">Kettlebell</option>
       </select>
     </div>
     <div style="font-size:11px; color:var(--text-faint); margin:-4px 0 12px;">Synced to your account — visible on all your devices, private to you.</div>
@@ -4958,6 +4959,152 @@ const EXERCISES = [
     desc: 'Stand facing the landmine, extend bar overhead. Lockout at top, lower behind head.',
   },
 
+  // ─── v1.13 additions — staple compounds + hip thrust + bulgarian + extra cables ───
+  // JC slugs HEAD-verified 200. Hip Thrust + Bulgarian use free-exercise-db
+  // photos (no JC gif exists for those two movements).
+
+  // Hips
+  {
+    id: 'kb-swing',
+    name: 'Kettlebell Swing',
+    bodyPart: 'Hips',
+    type: 'Kettlebell',
+    primaryMuscle: 'Glutes',
+    secondaryMuscles: ['Hamstrings', 'Core', 'Shoulders (front)'],
+    slug: 'glutes/kettlebell-swing',
+    desc: 'Hinge at the hips and snap them forward to float the bell to chest height. Power from glutes, not arms.',
+  },
+  {
+    id: 'bb-hip-thrust',
+    name: 'Hip Thrust (Barbell)',
+    bodyPart: 'Hips',
+    type: 'Bar',
+    primaryMuscle: 'Glutes',
+    secondaryMuscles: ['Hamstrings'],
+    image: 'Barbell_Hip_Thrust',
+    desc: 'Upper back on a bench, bar over the hips. Drive through the heels to full lockout, squeeze the glutes at the top.',
+  },
+
+  // Legs
+  {
+    id: 'kb-goblet-squat',
+    name: 'Goblet Squat (Kettlebell)',
+    bodyPart: 'Legs',
+    type: 'Kettlebell',
+    primaryMuscle: 'Quads',
+    secondaryMuscles: ['Glutes', 'Core'],
+    slug: 'glutes/kettlebell-goblet-squat',
+    desc: 'Hold the bell at your chest and squat between the knees, keeping the torso tall.',
+  },
+  {
+    id: 'bb-bulgarian-split-squat',
+    name: 'Bulgarian Split Squat (Barbell)',
+    bodyPart: 'Legs',
+    type: 'Bar',
+    primaryMuscle: 'Quads',
+    secondaryMuscles: ['Glutes', 'Hamstrings'],
+    image: 'One_Leg_Barbell_Squat',
+    desc: 'Rear foot on a bench, bar on the back. Drop straight down on the front leg, drive up through the heel.',
+  },
+
+  // Back
+  {
+    id: 'bb-trap-bar-deadlift',
+    name: 'Trap Bar Deadlift',
+    bodyPart: 'Back',
+    type: 'Bar',
+    primaryMuscle: 'Back / Traps',
+    secondaryMuscles: ['Glutes', 'Hamstrings', 'Quads'],
+    slug: 'glutes/trap-bar-deadlift',
+    desc: 'Stand inside the hex bar, flat back, drive the floor away. More quad and easier on the spine than a straight bar.',
+  },
+  {
+    id: 'bb-power-clean',
+    name: 'Power Clean (Barbell)',
+    bodyPart: 'Back',
+    type: 'Bar',
+    primaryMuscle: 'Traps / Upper Back',
+    secondaryMuscles: ['Hamstrings', 'Glutes', 'Quads', 'Shoulders (front)'],
+    slug: 'hamstrings/power-clean',
+    desc: 'Explosive pull from the floor, catch the bar on the front shoulders. Triple-extend hips, knees and ankles.',
+  },
+
+  // Core
+  {
+    id: 'db-farmers-walk',
+    name: "Farmer's Walk",
+    bodyPart: 'Core',
+    type: 'Dumbbell',
+    primaryMuscle: 'Core / Grip',
+    secondaryMuscles: ['Traps', 'Forearms', 'Legs'],
+    slug: 'quads/farmers-walk',
+    desc: 'Hold heavy dumbbells at your sides and walk tall with a braced core and locked-down shoulders.',
+  },
+
+  // Shoulders
+  {
+    id: 'bb-thruster',
+    name: 'Thruster (Barbell)',
+    bodyPart: 'Shoulders',
+    type: 'Bar',
+    primaryMuscle: 'Shoulders (front)',
+    secondaryMuscles: ['Quads', 'Glutes', 'Triceps'],
+    slug: 'delts/barbell-thruster',
+    desc: 'Front squat straight into an overhead press in one motion — drive out of the squat to launch the bar up.',
+  },
+  {
+    id: 'bb-clean-and-press',
+    name: 'Clean and Press (Barbell)',
+    bodyPart: 'Shoulders',
+    type: 'Bar',
+    primaryMuscle: 'Shoulders',
+    secondaryMuscles: ['Traps', 'Legs', 'Triceps'],
+    slug: 'quads/barbell-clean-and-press',
+    desc: 'Clean the bar to the shoulders, then press it overhead. Full-body power builder.',
+  },
+  {
+    id: 'bb-landmine-lateral-raise',
+    name: 'Landmine Lateral Raise',
+    bodyPart: 'Shoulders',
+    type: 'Bar',
+    primaryMuscle: 'Shoulders (side)',
+    secondaryMuscles: ['Shoulders (front)'],
+    slug: 'delts/landmine-lateral-raise',
+    desc: 'Raise the landmine bar out to the side with a slightly bent arm — constant tension on the side delt.',
+  },
+
+  // Cable
+  {
+    id: 'cb-shrug',
+    name: 'Shrug (Cable)',
+    bodyPart: 'Back',
+    type: 'Cable',
+    primaryMuscle: 'Traps',
+    secondaryMuscles: ['Upper Back'],
+    slug: 'traps/cable-shrug',
+    desc: 'Low pulley in each hand, shrug straight up and hold at the top. No rolling the shoulders.',
+  },
+  {
+    id: 'cb-one-arm-pulldown',
+    name: 'Single-Arm Lat Pulldown (Cable)',
+    bodyPart: 'Back',
+    type: 'Cable',
+    primaryMuscle: 'Lats',
+    secondaryMuscles: ['Biceps', 'Upper Back'],
+    slug: 'lats/cable-one-arm-pulldown',
+    desc: 'One handle overhead, pull down and back to the lat while keeping the chest tall. One side at a time for a bigger stretch.',
+  },
+  {
+    id: 'cb-drag-curl',
+    name: 'Drag Curl (Cable)',
+    bodyPart: 'Arms',
+    type: 'Cable',
+    primaryMuscle: 'Biceps',
+    secondaryMuscles: ['Forearms'],
+    slug: 'biceps/cable-drag-curl',
+    desc: 'Drag the bar up along your torso with the elbows travelling back — keeps tension on the biceps peak.',
+  },
+
 ];
 
 const BODY_PARTS = [...new Set(EXERCISES.map(e => e.bodyPart))].sort();
@@ -6177,7 +6324,7 @@ function chipAllowsValue(containerId, value) {
 }
 
 // Centralised list of equipment types used by every Type filter.
-const EQUIPMENT_TYPES = ['Bar', 'Dumbbell', 'Cable', 'Machine', 'Smith', 'Body Weight'];
+const EQUIPMENT_TYPES = ['Bar', 'Dumbbell', 'Cable', 'Machine', 'Smith', 'Body Weight', 'Kettlebell'];
 
 // ============================================================
 // DROPDOWN POPULATION
