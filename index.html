@@ -7224,8 +7224,6 @@ function deleteCustomActivity(id) {
 
 let editingPlaylistId = null;    // id being edited (null = creating new)
 let playlistDraft = null;        // working copy while editing: { id, name, exerciseIds }
-let playlistAddSearch = '';      // search text in the editor's add-exercise list
-let showPlaylistAddList = false; // whether the add-exercise checklist is expanded
 let pendingAddExerciseId = null; // exercise queued by the card ＋ chooser
 
 function playlistById(id) {
@@ -7313,16 +7311,11 @@ function openPlaylistEditor(id) {
   playlistDraft = existing
     ? { id: existing.id, name: existing.name, exerciseIds: existing.exerciseIds.slice() }
     : { id: null, name: '', exerciseIds: [] };
-  playlistAddSearch = '';
-  showPlaylistAddList = !existing;   // new list: open the picker right away
   renderPlaylistEditor();
 }
 function renderPlaylistEditor() {
   $('#playlistModalTitle').textContent = editingPlaylistId ? 'Edit playlist' : 'New playlist';
   const d = playlistDraft;
-  const addWrap = showPlaylistAddList ? `
-    <input type="search" id="plAddSearch" class="search-input" placeholder="Search exercises to add…" value="${escapeHtml(playlistAddSearch)}" autocomplete="off" style="margin-bottom:6px;">
-    <div id="plAddList" style="max-height:38vh; overflow-y:auto; border:1px solid var(--border); border-radius:6px; padding:4px 8px;"></div>` : '';
   $('#playlistModalBody').innerHTML = `
     <div class="form-group">
       <label for="plName">Name</label>
@@ -7330,32 +7323,18 @@ function renderPlaylistEditor() {
     </div>
     <div style="font-weight:600; font-size:13px; margin:4px 0 8px;">Exercises (<span id="plCount">${d.exerciseIds.length}</span>)</div>
     <div id="plItems"></div>
-    <button type="button" id="plToggleAdd" class="btn btn-secondary" style="width:100%; margin:4px 0 10px;">${showPlaylistAddList ? '▲ Hide exercise list' : '＋ Add exercises'}</button>
-    ${addWrap}
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px;">
+    <div style="font-size:12px; color:var(--text-dim); margin:2px 0 12px;">Add exercises with the <strong>＋</strong> button on any exercise card in the Log grid.</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
       <button type="button" class="btn btn-secondary" id="plCancelBtn">Cancel</button>
       <button type="button" class="btn btn-primary" id="plSaveBtn">✓ Save</button>
     </div>`;
   const body = $('#playlistModalBody');
   body.querySelector('#plName').addEventListener('input', e => { d.name = e.target.value; });
-  body.querySelector('#plToggleAdd').addEventListener('click', () => {
-    d.name = body.querySelector('#plName').value;
-    showPlaylistAddList = !showPlaylistAddList;
-    renderPlaylistEditor();
-  });
   body.querySelector('#plCancelBtn').addEventListener('click', () => {
     editingPlaylistId = null; playlistDraft = null; renderPlaylistManager();
   });
   body.querySelector('#plSaveBtn').addEventListener('click', savePlaylistDraft);
-  const search = body.querySelector('#plAddSearch');
-  if (search) {
-    search.addEventListener('input', e => {
-      playlistAddSearch = e.target.value;
-      const cont = document.getElementById('plAddList');
-      if (cont) { cont.innerHTML = buildPlAddListHTML(); wirePlAddList(); }
-    });
-  }
-  refreshPlEditorLists();
+  renderPlItems();
 }
 function renderPlItems() {
   const d = playlistDraft;
@@ -7377,40 +7356,8 @@ function renderPlItems() {
   cont.querySelectorAll('[data-pl-down]').forEach(b => b.addEventListener('click', () => movePlaylistItem(+b.dataset.plDown, +1)));
   cont.querySelectorAll('[data-pl-remove]').forEach(b => b.addEventListener('click', () => {
     playlistDraft.exerciseIds.splice(+b.dataset.plRemove, 1);
-    refreshPlEditorLists();
+    renderPlItems();
   }));
-}
-function buildPlAddListHTML() {
-  const d = playlistDraft;
-  const q = playlistAddSearch.trim().toLowerCase();
-  const inDraft = new Set(d.exerciseIds);
-  const list = allExercises()
-    .filter(e => !q || e.name.toLowerCase().includes(q))
-    .slice(0, 60)
-    .map(e => `<label style="display:flex; align-items:center; gap:8px; padding:6px 4px; font-size:13px; cursor:pointer;">
-      <input type="checkbox" data-pl-toggle="${e.id}" ${inDraft.has(e.id) ? 'checked' : ''}>
-      <span style="flex:1; min-width:0;">${escapeHtml(e.name)}</span>
-      <span style="font-size:11px; color:var(--text-faint);">${escapeHtml(e.bodyPart)}</span>
-    </label>`).join('');
-  return list || '<div style="font-size:13px;color:var(--text-dim);padding:8px 0;">No matches</div>';
-}
-function wirePlAddList() {
-  const cont = document.getElementById('plAddList');
-  if (!cont) return;
-  cont.querySelectorAll('[data-pl-toggle]').forEach(cb => cb.addEventListener('change', () => {
-    const id = cb.dataset.plToggle;
-    const d = playlistDraft;
-    if (cb.checked) { if (!d.exerciseIds.includes(id)) d.exerciseIds.push(id); }
-    else { d.exerciseIds = d.exerciseIds.filter(x => x !== id); }
-    renderPlItems();   // refresh ordered list + count; leave the checklist untouched
-  }));
-}
-function refreshPlEditorLists() {
-  renderPlItems();
-  if (showPlaylistAddList) {
-    const cont = document.getElementById('plAddList');
-    if (cont) { cont.innerHTML = buildPlAddListHTML(); wirePlAddList(); }
-  }
 }
 function movePlaylistItem(i, dir) {
   const d = playlistDraft;
