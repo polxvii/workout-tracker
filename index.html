@@ -661,6 +661,60 @@ select {
   color: white;
 }
 
+/* Add-to-playlist button on exercise cards — bottom-right circle,
+   mirrors the info (top-left) and delete (top-right) buttons. */
+.exercise-add-pl-btn {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  z-index: 2;
+  font-family: inherit;
+  line-height: 1;
+  touch-action: manipulation;
+}
+.exercise-add-pl-btn:hover, .exercise-add-pl-btn:active {
+  background: var(--success);
+  border-color: var(--success);
+  color: white;
+}
+
+/* Playlist chips on the Log screen */
+.pl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pl-chip.active {
+  border-color: var(--primary);
+  background: rgba(59, 130, 246, 0.15);
+}
+.pl-chip.pl-manage {
+  border-style: dashed;
+  color: var(--text-dim);
+}
+
 /* Toggle tile — used in Settings → Export "What to include" */
 .toggle-tile {
   display: flex;
@@ -1350,6 +1404,13 @@ select {
         <input readonly class="datepicker-input" type="text" id="logDate" autocomplete="off">
       </div>
 
+      <!-- Playlist picker: pick a saved routine to filter the grid down to
+           just those exercises, in order. Managed via the ⚙ Manage chip. -->
+      <div class="form-group" id="playlistBar">
+        <label>Playlist</label>
+        <div id="playlistChips" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+      </div>
+
       <div class="form-group" id="exerciseFilterSection">
         <label>Filter exercises</label>
         <div id="filterBodyPart"></div>
@@ -1969,6 +2030,28 @@ select {
       <button class="btn btn-secondary" id="customExCancelBtn" type="button">Cancel</button>
       <button class="btn btn-primary" id="customExSaveBtn" type="button">✓ Save</button>
     </div>
+  </div>
+</div>
+
+<!-- Playlist manager / editor modal (create, rename, reorder, delete) -->
+<div id="playlistModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1002; padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); max-width:480px; margin:40px auto; padding:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <div style="font-weight:600; font-size:16px;" id="playlistModalTitle">Playlists</div>
+      <button id="playlistModalClose" type="button" style="background:transparent; border:none; color:var(--text-dim); font-size:24px; cursor:pointer; padding:4px 10px;">×</button>
+    </div>
+    <div id="playlistModalBody"></div>
+  </div>
+</div>
+
+<!-- Choose-a-playlist sheet (opened by the ＋ button on an exercise card) -->
+<div id="playlistChooseModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1003; padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); max-width:400px; margin:60px auto; padding:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div style="font-weight:600; font-size:16px;">Add to playlist</div>
+      <button id="playlistChooseClose" type="button" style="background:transparent; border:none; color:var(--text-dim); font-size:24px; cursor:pointer; padding:4px 10px;">×</button>
+    </div>
+    <div id="playlistChooseBody"></div>
   </div>
 </div>
 
@@ -5554,6 +5637,8 @@ let state = {
   // Targets are a single per-user row with type='nutrition_targets'.
   nutritionLogs: [],
   nutritionTargets: { ...DEFAULT_NUTRITION_TARGETS },
+  routines: [],            // user-created exercise playlists (type='routine')
+  activePlaylistId: null,  // session-only: which playlist filters the Log grid
   selectedExercise: null,
   currentView: 'strength',
   detailReturnView: 'strength',
@@ -5568,6 +5653,7 @@ function loadState() {
       if (Array.isArray(parsed.customExercises))  state.customExercises  = parsed.customExercises;
       if (Array.isArray(parsed.customActivities)) state.customActivities = parsed.customActivities;
       if (Array.isArray(parsed.nutritionLogs))    state.nutritionLogs    = parsed.nutritionLogs;
+      if (Array.isArray(parsed.routines))         state.routines         = parsed.routines;
       if (parsed.nutritionTargets && typeof parsed.nutritionTargets === 'object') {
         state.nutritionTargets = { ...DEFAULT_NUTRITION_TARGETS, ...parsed.nutritionTargets };
       }
@@ -5584,6 +5670,7 @@ function saveStateLocal() {
       customActivities: state.customActivities,
       nutritionLogs: state.nutritionLogs,
       nutritionTargets: state.nutritionTargets,
+      routines: state.routines,
     }));
   } catch (e) { showToast('Could not save data', 'error'); }
 }
@@ -6389,6 +6476,7 @@ function populateProgressExercises() {
 // ============================================================
 function renderExerciseGrid() {
   const grid = $('#exerciseGrid');
+  renderPlaylistBar();
   // The green corner dot on each card indicates "you logged this exercise
   // on the currently-selected date". Filter logs by date so changing the
   // datepicker actually changes which dots show. Previously this was a
@@ -6431,24 +6519,45 @@ function renderExerciseGrid() {
     return;
   }
 
-  // Otherwise, show the filtered grid
-  $('#exerciseFilterSection').style.display = '';
+  // Otherwise, show the filtered grid.
   $('#changeExerciseBtn').style.display = 'none';
-  $('#exerciseLabelText').textContent = 'Choose exercise ';
 
-  const bpSet = getChipMultiSelected('#filterBodyPart');
-  const tpSet = getChipMultiSelected('#filterType');
-  const q = $('#searchExercise').value.trim().toLowerCase();
-
-  const filtered = allExercises().filter(e =>
-    (bpSet.size === 0 || bpSet.has(e.bodyPart)) &&
-    (tpSet.size === 0 || tpSet.has(e.type)) &&
-    (!q || e.name.toLowerCase().includes(q))
-  );
+  // An active playlist overrides the body-part/type/search filters: show only
+  // that playlist's exercises, in the saved order.
+  const activePl = state.activePlaylistId ? playlistById(state.activePlaylistId) : null;
+  if (state.activePlaylistId && !activePl) state.activePlaylistId = null;  // stale id
+  const inPlaylistMode = !!activePl;
+  let filtered;
+  if (inPlaylistMode) {
+    $('#exerciseFilterSection').style.display = 'none';
+    $('#exerciseLabelText').textContent = 'Playlist: ' + activePl.name + ' ';
+    filtered = activePl.exerciseIds.map(id => exerciseById(id)).filter(Boolean);
+  } else {
+    $('#exerciseFilterSection').style.display = '';
+    $('#exerciseLabelText').textContent = 'Choose exercise ';
+    const bpSet = getChipMultiSelected('#filterBodyPart');
+    const tpSet = getChipMultiSelected('#filterType');
+    const q = $('#searchExercise').value.trim().toLowerCase();
+    filtered = allExercises().filter(e =>
+      (bpSet.size === 0 || bpSet.has(e.bodyPart)) &&
+      (tpSet.size === 0 || tpSet.has(e.type)) &&
+      (!q || e.name.toLowerCase().includes(q))
+    );
+  }
 
   $('#logCount').textContent = '(' + filtered.length + ')';
 
   if (filtered.length === 0) {
+    if (inPlaylistMode) {
+      grid.innerHTML = `
+        <div class="empty" style="grid-column: 1/-1;">
+          <div class="empty-title">This playlist is empty</div>
+          <div>Tap <strong>⚙ Manage</strong> to add exercises — or <button type="button" id="emptyClearPlaylistBtn" style="background:none;border:none;color:var(--primary);font:inherit;cursor:pointer;padding:0;text-decoration:underline;">show all exercises</button></div>
+        </div>`;
+      const cb = grid.querySelector('#emptyClearPlaylistBtn');
+      if (cb) cb.addEventListener('click', () => { state.activePlaylistId = null; renderExerciseGrid(); });
+      return;
+    }
     grid.innerHTML = `
       <div class="empty" style="grid-column: 1/-1;">
         <div class="empty-title">No exercises match</div>
@@ -6460,8 +6569,9 @@ function renderExerciseGrid() {
   }
 
   // Trailing "+ Custom" tile lets the user add their own exercise when
-  // nothing in the dataset matches what they're doing.
-  const addTile = `
+  // nothing in the dataset matches. Hidden in playlist mode — that list is
+  // curated, so you edit it through ⚙ Manage instead.
+  const addTile = inPlaylistMode ? '' : `
     <div class="exercise-card add-custom-card" data-add-custom="exercise"
          style="display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px; border:1px dashed var(--border); background:transparent; color:var(--text-dim);">
       <div style="font-size:28px; line-height:1;">+</div>
@@ -6471,6 +6581,7 @@ function renderExerciseGrid() {
     <div class="exercise-card ${loggedIds.has(e.id) ? 'has-data' : ''}" data-id="${e.id}">
       <button class="exercise-info-btn" data-info="${e.id}" aria-label="Show details for ${escapeHtml(e.name)}" title="Show details">ⓘ</button>
       ${e.isCustom ? `<button class="exercise-delete-btn" data-delete-custom="${e.id}" aria-label="Delete custom exercise" title="Delete">×</button>` : ''}
+      ${!inPlaylistMode ? `<button class="exercise-add-pl-btn" data-addpl="${e.id}" aria-label="Add ${escapeHtml(e.name)} to a playlist" title="Add to playlist">＋</button>` : ''}
       <div class="exercise-img">${exerciseImage(e.id)}</div>
       <div class="exercise-name">${escapeHtml(e.name)}</div>
       <div class="exercise-meta">${escapeHtml(e.bodyPart)} · ${escapeHtml(e.type)}</div>
@@ -6492,7 +6603,15 @@ function renderExerciseGrid() {
       deleteCustomExercise(btn.dataset.deleteCustom);
     });
   });
-  grid.querySelector('[data-add-custom="exercise"]').addEventListener('click', () => openCustomExerciseModal());
+  // ＋ button: add this exercise to a playlist (opens the chooser sheet).
+  grid.querySelectorAll('[data-addpl]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      openPlaylistChooser(btn.dataset.addpl);
+    });
+  });
+  const addCustomBtn = grid.querySelector('[data-add-custom="exercise"]');
+  if (addCustomBtn) addCustomBtn.addEventListener('click', () => openCustomExerciseModal());
 
   grid.querySelectorAll('.exercise-card').forEach(card => {
     card.addEventListener('click', () => {
@@ -7093,6 +7212,276 @@ function deleteCustomActivity(id) {
   renderCardioActivityGrid();
   populateCardioActivitySelects();
   showToast('Deleted "' + a.name + '"');
+}
+
+// ============================================================
+// PLAYLISTS (user-created strength routines) — v1.13
+// ============================================================
+// A playlist is a named, ordered list of exercise IDs. Picking one on the
+// Log screen filters the exercise grid to just those exercises, in order.
+// Stored per-user in Supabase as type='routine' rows (routineToRow /
+// syncCustomToRemote / pullFromRemote). Logs are unaffected by playlists.
+
+let editingPlaylistId = null;    // id being edited (null = creating new)
+let playlistDraft = null;        // working copy while editing: { id, name, exerciseIds }
+let playlistAddSearch = '';      // search text in the editor's add-exercise list
+let showPlaylistAddList = false; // whether the add-exercise checklist is expanded
+let pendingAddExerciseId = null; // exercise queued by the card ＋ chooser
+
+function playlistById(id) {
+  return (state.routines || []).find(p => p.id === id);
+}
+function makePlaylistId(name) {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'list';
+  return 'routine-' + slug + '-' + Date.now().toString(36);
+}
+
+// ---- Chip bar on the Log screen ----
+function renderPlaylistBar() {
+  const wrap = $('#playlistChips');
+  if (!wrap) return;
+  const pls = state.routines || [];
+  const chips = pls.map(p => {
+    const active = p.id === state.activePlaylistId;
+    return `<button type="button" class="pl-chip ${active ? 'active' : ''}" data-pl="${p.id}">`
+      + escapeHtml(p.name) + (active ? ' ✕' : '') + '</button>';
+  }).join('');
+  wrap.innerHTML = chips + `<button type="button" class="pl-chip pl-manage" data-pl-manage="1">⚙ Manage</button>`;
+  wrap.querySelectorAll('[data-pl]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.pl;
+      // Toggle: tapping the active playlist clears it.
+      state.activePlaylistId = (state.activePlaylistId === id) ? null : id;
+      state.selectedExercise = null;
+      renderExerciseGrid();
+    });
+  });
+  wrap.querySelector('[data-pl-manage]').addEventListener('click', openPlaylistManager);
+}
+
+// ---- Manager modal (list of playlists) ----
+function openPlaylistManager() {
+  editingPlaylistId = null;
+  playlistDraft = null;
+  renderPlaylistManager();
+  $('#playlistModal').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+function closePlaylistModal() {
+  $('#playlistModal').style.display = 'none';
+  document.body.style.overflow = '';
+  editingPlaylistId = null;
+  playlistDraft = null;
+}
+function renderPlaylistManager() {
+  $('#playlistModalTitle').textContent = 'Your playlists';
+  const pls = state.routines || [];
+  const rows = pls.length ? pls.map(p => `
+    <div style="display:flex; align-items:center; gap:8px; padding:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:6px; margin-bottom:8px;">
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.name)}</div>
+        <div style="font-size:12px; color:var(--text-dim);">${p.exerciseIds.length} exercise${p.exerciseIds.length === 1 ? '' : 's'}</div>
+      </div>
+      <button type="button" class="btn btn-secondary" data-pl-edit="${p.id}" style="width:auto; padding:6px 12px;">Edit</button>
+      <button type="button" class="btn btn-secondary" data-pl-del="${p.id}" style="width:auto; padding:6px 10px; color:var(--danger);">Delete</button>
+    </div>`).join('')
+    : `<div class="empty" style="padding:16px 0;"><div class="empty-title">No playlists yet</div><div style="font-size:13px; color:var(--text-dim);">Create one to group the exercises you train together.</div></div>`;
+  $('#playlistModalBody').innerHTML = rows
+    + `<button type="button" class="btn btn-primary" id="plNewBtn" style="width:100%; margin-top:6px;">＋ New playlist</button>`;
+  const body = $('#playlistModalBody');
+  body.querySelector('#plNewBtn').addEventListener('click', () => openPlaylistEditor(null));
+  body.querySelectorAll('[data-pl-edit]').forEach(b => b.addEventListener('click', () => openPlaylistEditor(b.dataset.plEdit)));
+  body.querySelectorAll('[data-pl-del]').forEach(b => b.addEventListener('click', () => deletePlaylist(b.dataset.plDel)));
+}
+function deletePlaylist(id) {
+  const p = playlistById(id);
+  if (!p) return;
+  if (!confirm(`Delete playlist "${p.name}"?\n\nYour logged workouts are not affected.`)) return;
+  state.routines = state.routines.filter(x => x.id !== id);
+  if (state.activePlaylistId === id) state.activePlaylistId = null;
+  saveState();
+  syncCustomToRemote().catch(e => console.warn('Playlist sync failed:', e));
+  renderPlaylistManager();
+  renderExerciseGrid();
+  showToast(`Deleted "${p.name}"`);
+}
+
+// ---- Editor (create / edit one playlist) ----
+function openPlaylistEditor(id) {
+  editingPlaylistId = id || null;
+  const existing = id ? playlistById(id) : null;
+  playlistDraft = existing
+    ? { id: existing.id, name: existing.name, exerciseIds: existing.exerciseIds.slice() }
+    : { id: null, name: '', exerciseIds: [] };
+  playlistAddSearch = '';
+  showPlaylistAddList = !existing;   // new list: open the picker right away
+  renderPlaylistEditor();
+}
+function renderPlaylistEditor() {
+  $('#playlistModalTitle').textContent = editingPlaylistId ? 'Edit playlist' : 'New playlist';
+  const d = playlistDraft;
+  const addWrap = showPlaylistAddList ? `
+    <input type="search" id="plAddSearch" class="search-input" placeholder="Search exercises to add…" value="${escapeHtml(playlistAddSearch)}" autocomplete="off" style="margin-bottom:6px;">
+    <div id="plAddList" style="max-height:38vh; overflow-y:auto; border:1px solid var(--border); border-radius:6px; padding:4px 8px;"></div>` : '';
+  $('#playlistModalBody').innerHTML = `
+    <div class="form-group">
+      <label for="plName">Name</label>
+      <input id="plName" type="text" placeholder="e.g. Chest day" value="${escapeHtml(d.name)}" autocomplete="off">
+    </div>
+    <div style="font-weight:600; font-size:13px; margin:4px 0 8px;">Exercises (<span id="plCount">${d.exerciseIds.length}</span>)</div>
+    <div id="plItems"></div>
+    <button type="button" id="plToggleAdd" class="btn btn-secondary" style="width:100%; margin:4px 0 10px;">${showPlaylistAddList ? '▲ Hide exercise list' : '＋ Add exercises'}</button>
+    ${addWrap}
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px;">
+      <button type="button" class="btn btn-secondary" id="plCancelBtn">Cancel</button>
+      <button type="button" class="btn btn-primary" id="plSaveBtn">✓ Save</button>
+    </div>`;
+  const body = $('#playlistModalBody');
+  body.querySelector('#plName').addEventListener('input', e => { d.name = e.target.value; });
+  body.querySelector('#plToggleAdd').addEventListener('click', () => {
+    d.name = body.querySelector('#plName').value;
+    showPlaylistAddList = !showPlaylistAddList;
+    renderPlaylistEditor();
+  });
+  body.querySelector('#plCancelBtn').addEventListener('click', () => {
+    editingPlaylistId = null; playlistDraft = null; renderPlaylistManager();
+  });
+  body.querySelector('#plSaveBtn').addEventListener('click', savePlaylistDraft);
+  const search = body.querySelector('#plAddSearch');
+  if (search) {
+    search.addEventListener('input', e => {
+      playlistAddSearch = e.target.value;
+      const cont = document.getElementById('plAddList');
+      if (cont) { cont.innerHTML = buildPlAddListHTML(); wirePlAddList(); }
+    });
+  }
+  refreshPlEditorLists();
+}
+function renderPlItems() {
+  const d = playlistDraft;
+  const countEl = document.getElementById('plCount');
+  if (countEl) countEl.textContent = d.exerciseIds.length;
+  const cont = document.getElementById('plItems');
+  if (!cont) return;
+  cont.innerHTML = d.exerciseIds.length ? d.exerciseIds.map((id, i) => {
+    const ex = exerciseById(id);
+    const nm = ex ? ex.name : '(deleted exercise)';
+    return `<div style="display:flex; align-items:center; gap:6px; padding:8px; background:var(--surface-2); border:1px solid var(--border); border-radius:6px; margin-bottom:6px;">
+      <div style="flex:1; min-width:0; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${i + 1}. ${escapeHtml(nm)}</div>
+      <button type="button" data-pl-up="${i}" ${i === 0 ? 'disabled' : ''} style="background:var(--surface); border:1px solid var(--border); border-radius:4px; width:30px; height:30px; cursor:pointer; color:var(--text);">↑</button>
+      <button type="button" data-pl-down="${i}" ${i === d.exerciseIds.length - 1 ? 'disabled' : ''} style="background:var(--surface); border:1px solid var(--border); border-radius:4px; width:30px; height:30px; cursor:pointer; color:var(--text);">↓</button>
+      <button type="button" data-pl-remove="${i}" style="background:var(--surface); border:1px solid var(--border); border-radius:4px; width:30px; height:30px; cursor:pointer; color:var(--danger);">×</button>
+    </div>`;
+  }).join('') : `<div style="font-size:13px; color:var(--text-dim); padding:6px 0 10px;">No exercises yet — tap “＋ Add exercises”.</div>`;
+  cont.querySelectorAll('[data-pl-up]').forEach(b => b.addEventListener('click', () => movePlaylistItem(+b.dataset.plUp, -1)));
+  cont.querySelectorAll('[data-pl-down]').forEach(b => b.addEventListener('click', () => movePlaylistItem(+b.dataset.plDown, +1)));
+  cont.querySelectorAll('[data-pl-remove]').forEach(b => b.addEventListener('click', () => {
+    playlistDraft.exerciseIds.splice(+b.dataset.plRemove, 1);
+    refreshPlEditorLists();
+  }));
+}
+function buildPlAddListHTML() {
+  const d = playlistDraft;
+  const q = playlistAddSearch.trim().toLowerCase();
+  const inDraft = new Set(d.exerciseIds);
+  const list = allExercises()
+    .filter(e => !q || e.name.toLowerCase().includes(q))
+    .slice(0, 60)
+    .map(e => `<label style="display:flex; align-items:center; gap:8px; padding:6px 4px; font-size:13px; cursor:pointer;">
+      <input type="checkbox" data-pl-toggle="${e.id}" ${inDraft.has(e.id) ? 'checked' : ''}>
+      <span style="flex:1; min-width:0;">${escapeHtml(e.name)}</span>
+      <span style="font-size:11px; color:var(--text-faint);">${escapeHtml(e.bodyPart)}</span>
+    </label>`).join('');
+  return list || '<div style="font-size:13px;color:var(--text-dim);padding:8px 0;">No matches</div>';
+}
+function wirePlAddList() {
+  const cont = document.getElementById('plAddList');
+  if (!cont) return;
+  cont.querySelectorAll('[data-pl-toggle]').forEach(cb => cb.addEventListener('change', () => {
+    const id = cb.dataset.plToggle;
+    const d = playlistDraft;
+    if (cb.checked) { if (!d.exerciseIds.includes(id)) d.exerciseIds.push(id); }
+    else { d.exerciseIds = d.exerciseIds.filter(x => x !== id); }
+    renderPlItems();   // refresh ordered list + count; leave the checklist untouched
+  }));
+}
+function refreshPlEditorLists() {
+  renderPlItems();
+  if (showPlaylistAddList) {
+    const cont = document.getElementById('plAddList');
+    if (cont) { cont.innerHTML = buildPlAddListHTML(); wirePlAddList(); }
+  }
+}
+function movePlaylistItem(i, dir) {
+  const d = playlistDraft;
+  const j = i + dir;
+  if (j < 0 || j >= d.exerciseIds.length) return;
+  const t = d.exerciseIds[i]; d.exerciseIds[i] = d.exerciseIds[j]; d.exerciseIds[j] = t;
+  renderPlItems();
+}
+function savePlaylistDraft() {
+  const d = playlistDraft;
+  const nameEl = $('#plName');
+  const name = (nameEl ? nameEl.value : (d.name || '')).trim();
+  if (!name) { showToast('Name is required', 'error'); if (nameEl) nameEl.focus(); return; }
+  d.name = name;
+  if (d.id) {
+    const idx = state.routines.findIndex(p => p.id === d.id);
+    if (idx >= 0) state.routines[idx] = { ...state.routines[idx], name: d.name, exerciseIds: d.exerciseIds.slice() };
+  } else {
+    d.id = makePlaylistId(name);
+    state.routines.push({ id: d.id, name: d.name, exerciseIds: d.exerciseIds.slice(), createdAt: new Date().toISOString() });
+  }
+  saveState();
+  syncCustomToRemote().catch(e => console.warn('Playlist sync failed:', e));
+  showToast('Saved "' + name + '"');
+  editingPlaylistId = null; playlistDraft = null;
+  renderPlaylistManager();
+  renderExerciseGrid();
+}
+
+// ---- Choose-a-playlist sheet (from the ＋ button on an exercise card) ----
+function openPlaylistChooser(exId) {
+  pendingAddExerciseId = exId;
+  const ex = exerciseById(exId);
+  const pls = state.routines || [];
+  const rows = pls.map(p => {
+    const has = p.exerciseIds.includes(exId);
+    return `<button type="button" class="btn btn-secondary" data-choose-pl="${p.id}" style="width:100%; margin-bottom:8px; ${has ? 'opacity:0.6;' : ''}">${escapeHtml(p.name)}${has ? ' ✓' : ''}</button>`;
+  }).join('');
+  $('#playlistChooseBody').innerHTML =
+    `<div style="font-size:13px; color:var(--text-dim); margin-bottom:10px;">Add <strong>${escapeHtml(ex ? ex.name : '')}</strong> to:</div>`
+    + rows
+    + `<button type="button" class="btn btn-primary" id="chooseNewPlBtn" style="width:100%; margin-top:4px;">＋ New playlist with this exercise</button>`;
+  const body = $('#playlistChooseBody');
+  body.querySelectorAll('[data-choose-pl]').forEach(b => b.addEventListener('click', () => {
+    addExerciseToPlaylist(b.dataset.choosePl, exId);
+    closePlaylistChooser();
+  }));
+  body.querySelector('#chooseNewPlBtn').addEventListener('click', () => {
+    closePlaylistChooser();
+    openPlaylistManager();
+    openPlaylistEditor(null);
+    playlistDraft.exerciseIds = exId ? [exId] : [];
+    renderPlaylistEditor();
+  });
+  $('#playlistChooseModal').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+function closePlaylistChooser() {
+  $('#playlistChooseModal').style.display = 'none';
+  document.body.style.overflow = '';
+}
+function addExerciseToPlaylist(plId, exId) {
+  const p = playlistById(plId);
+  if (!p) return;
+  if (p.exerciseIds.includes(exId)) { showToast('Already in "' + p.name + '"'); return; }
+  p.exerciseIds.push(exId);
+  saveState();
+  syncCustomToRemote().catch(e => console.warn('Playlist sync failed:', e));
+  const ex = exerciseById(exId);
+  showToast('Added ' + (ex ? '"' + ex.name + '"' : '') + ' to "' + p.name + '"');
+  renderPlaylistBar();
 }
 
 function openCustomCardioModal() {
@@ -11465,6 +11854,18 @@ function customActivityToRow(a) {
     updated_at: new Date().toISOString(),
   };
 }
+// Playlists (user routines) sync alongside custom definitions — same table,
+// distinct type='routine'. data = { id, name, exerciseIds, createdAt }.
+function routineToRow(r) {
+  return {
+    id: r.id,
+    user_id: currentUser.id,
+    type: 'routine',
+    date: '1970-01-01',
+    data: r,
+    updated_at: new Date().toISOString(),
+  };
+}
 
 // ---- Nutrition sync (type = 'nutrition' | 'nutrition_targets') ----
 // Per-food entries live as type='nutrition' rows with the date column populated
@@ -11517,6 +11918,7 @@ async function syncCustomToRemote() {
   const rows = [
     ...state.customExercises.map(customExToRow),
     ...state.customActivities.map(customActivityToRow),
+    ...(state.routines || []).map(routineToRow),
   ];
 
   // IDs that no longer exist locally must be deleted remotely.
@@ -11525,7 +11927,7 @@ async function syncCustomToRemote() {
     .from('workouts')
     .select('id')
     .eq('user_id', currentUser.id)
-    .in('type', ['custom_exercise', 'custom_activity']);
+    .in('type', ['custom_exercise', 'custom_activity', 'routine']);
   const toDelete = (remoteCustom || []).map(r => r.id).filter(id => !localCustomIds.has(id));
 
   if (rows.length) {
@@ -11555,10 +11957,11 @@ async function pullFromRemote() {
   // still listed in META_TYPES so they're excluded from logRows, but no longer
   // read into this app's state.
   const rows = data || [];
-  const META_TYPES = new Set(['custom_exercise', 'custom_activity', 'nutrition', 'nutrition_targets']);
+  const META_TYPES = new Set(['custom_exercise', 'custom_activity', 'nutrition', 'nutrition_targets', 'routine']);
   const logRows       = rows.filter(r => !META_TYPES.has(r.type));
   const customExRows  = rows.filter(r => r.type === 'custom_exercise');
   const customActRows = rows.filter(r => r.type === 'custom_activity');
+  const routineRows   = rows.filter(r => r.type === 'routine');
 
   state.logs             = logRows.map(rowToLog);
   // Only overwrite local custom definitions when Supabase actually has rows.
@@ -11566,6 +11969,7 @@ async function pullFromRemote() {
   // pullFromRemote from wiping exercises/activities that only exist locally.
   if (customExRows.length > 0)  state.customExercises  = customExRows.map(r => r.data);
   if (customActRows.length > 0) state.customActivities = customActRows.map(r => r.data);
+  if (routineRows.length > 0)   state.routines         = routineRows.map(r => r.data);
 
   lastSyncedIds = new Set(state.logs.map(l => l.id));
   saveStateLocal();
@@ -12651,6 +13055,12 @@ async function init() {
   $('#customExCancelBtn').addEventListener('click', closeCustomExerciseModal);
   $('#customExSaveBtn')  .addEventListener('click', saveCustomExercise);
   $('#customExModal')    .addEventListener('click', e => { if (e.target.id === 'customExModal') closeCustomExerciseModal(); });
+
+  // Playlist modals (dynamic buttons inside are wired on render)
+  $('#playlistModalClose') .addEventListener('click', closePlaylistModal);
+  $('#playlistModal')      .addEventListener('click', e => { if (e.target.id === 'playlistModal') closePlaylistModal(); });
+  $('#playlistChooseClose').addEventListener('click', closePlaylistChooser);
+  $('#playlistChooseModal').addEventListener('click', e => { if (e.target.id === 'playlistChooseModal') closePlaylistChooser(); });
 
   // Custom cardio modal wiring
   $('#customCardioClose')    .addEventListener('click', closeCustomCardioModal);
