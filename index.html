@@ -1425,6 +1425,7 @@ select {
         <label><span id="exerciseLabelText">Choose exercise </span><span id="logCount">(0)</span></label>
         <div class="exercise-grid" id="exerciseGrid"></div>
         <button class="btn btn-secondary" id="changeExerciseBtn" style="display:none; margin-top:10px;">↺ Change exercise</button>
+        <button class="btn btn-secondary" id="addToPlaylistBtn" style="display:none; margin-top:8px;">➕ Add to playlist</button>
       </div>
     </div>
 
@@ -6521,6 +6522,7 @@ function renderExerciseGrid() {
     $('#exerciseLabelText').textContent = 'Selected exercise';
     $('#logCount').textContent = '';
     $('#changeExerciseBtn').style.display = 'block';
+    $('#addToPlaylistBtn').style.display = 'block';
     grid.innerHTML = `
       <div class="exercise-card selected ${loggedIds.has(ex.id) ? 'has-data' : ''}" data-id="${ex.id}" style="grid-column: 1 / -1; max-width: 200px; margin: 0 auto;">
         <button class="exercise-info-btn" data-info="${ex.id}" aria-label="Show details for ${escapeHtml(ex.name)}" title="Show details">ⓘ</button>
@@ -6543,6 +6545,7 @@ function renderExerciseGrid() {
 
   // Otherwise, show the filtered grid.
   $('#changeExerciseBtn').style.display = 'none';
+  $('#addToPlaylistBtn').style.display = 'none';
 
   // An active playlist overrides the body-part/type/search filters: show only
   // that playlist's exercises, in the saved order.
@@ -12588,6 +12591,12 @@ async function init() {
       const grid = $('#exerciseGrid');
       if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
+  });
+
+  // Add-to-playlist from the selected-exercise view — no need to go back to
+  // the grid and find the card's ＋ button.
+  $('#addToPlaylistBtn').addEventListener('click', () => {
+    if (state.selectedExercise) openPlaylistChooser(state.selectedExercise);
   });
 
   // Sets — adding a new set defaults to the previous set's values, so a
