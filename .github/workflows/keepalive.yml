@@ -1,0 +1,60 @@
+name: Supabase Keepalive
+
+# Keeps the Supabase project from being paused by the free-tier 7-day
+# inactivity rule. Runs once a day, sends one cheap read-only request to
+# the database (respects RLS, touches no data), and once every ~50 days
+# pushes an empty commit so GitHub does not auto-disable this scheduled
+# workflow (the 60-day no-activity rule).
+
+on:
+  schedule:
+    - cron: '37 5 * * *'   # daily ~05:37 UTC (~12:37 Thailand); odd minute avoids GitHub's top-of-hour load
+  workflow_dispatch: {}     # allow manual "Run workflow" from the Actions tab
+
+permissions:
+  contents: write           # needed only for the ~50-day keepalive commit
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ping Supabase (read-only, keeps the project awake)
+        env:
+          SUPABASE_URL: https://ctnnuakqubvljowwizzb.supabase.co
+          SUPABASE_KEY: sb_publishable_iFnuDCy0fkPR4neO2L_Tgw_T6oX5pk9
+        run: |
+          code=$(curl -sS -o /tmp/resp.txt -w '%{http_code}' \
+            "$SUPABASE_URL/rest/v1/workouts?select=id&limit=1" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY")
+          echo "HTTP $code"
+          cat /tmp/resp.txt || true
+          echo
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            echo "::error::Supabase keepalive ping failed with HTTP $code"
+            exit 1
+          fi
+          echo "Supabase ping OK."
+
+      - name: Keepalive commit (reset GitHub's 60-day scheduled-workflow timer)
+        run: |
+          last=$(git log -1 --format=%ct)
+          now=$(date +%s)
+          age=$(( (now - last) / 86400 ))
+          echo "Last commit was $age day(s) ago."
+          if [ "$age" -ge 50 ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: keepalive (reset scheduled-workflow timer) [skip ci]"
+            if git push; then
+              echo "Pushed keepalive commit."
+            else
+              echo "::error::Keepalive commit could not be pushed. In GitHub: Settings -> Actions -> General -> Workflow permissions -> enable 'Read and write permissions'."
+              exit 1
+            fi
+          else
+            echo "Under 50 days since last commit -- no keepalive commit needed."
+          fi
