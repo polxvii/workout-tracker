@@ -493,6 +493,36 @@ input, select, textarea, button { min-width: 0; max-width: 100%; }
   margin-bottom: 12px;
 }
 
+/* Collapsible card (accordion) — used on Settings so a long list of
+   sections stays tidy. Tap the header to expand/collapse; state is
+   remembered in localStorage. Reusable: add class "collapsible" + a
+   data-collapse-key to any .card and wrap its body in .collapse-body. */
+.card.collapsible > .collapse-header {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 0;               /* spacing comes from .collapse-body when open */
+}
+.card.collapsible > .collapse-header::after {
+  content: '\25BE';               /* ▾ */
+  font-size: 11px;
+  color: var(--text-faint);
+  transition: transform 0.2s ease;
+  flex: none;
+}
+.card.collapsible.collapsed > .collapse-header::after {
+  transform: rotate(-90deg);      /* ▸ points right when collapsed */
+}
+.card.collapsible > .collapse-body {
+  margin-top: 14px;
+}
+.card.collapsible.collapsed > .collapse-body {
+  display: none;
+}
+
 /* Form */
 .form-group {
   margin-bottom: 14px;
@@ -1912,8 +1942,9 @@ select {
     </div>
 
     <!-- EXPORT -->
-    <div class="card">
-      <div class="card-title">Export</div>
+    <div class="card collapsible" data-collapse-key="export">
+      <div class="card-title collapse-header">Export</div>
+      <div class="collapse-body">
       <div style="font-size:13px; color:var(--text-dim); margin-bottom:12px;">Download your workout data. CSV opens directly in Excel or Google Sheets. JSON is best for full backup / restore.</div>
 
       <label>Period</label>
@@ -1954,28 +1985,35 @@ select {
       <button class="btn btn-secondary" id="exportJsonBtn" style="margin-bottom:8px;">📥 Export as JSON (full backup)</button>
       <button class="btn btn-secondary" id="shareBackupBtn">✉️ Send backup file to email</button>
       <div id="shareBackupHint" style="display:none; font-size:12px; color:var(--text-faint); margin-top:8px;">Your device's share sheet will open — tap Mail (or any app) to send the file.</div>
+      </div>
     </div>
 
     <!-- IMPORT -->
-    <div class="card">
-      <div class="card-title">Import</div>
+    <div class="card collapsible" data-collapse-key="import">
+      <div class="card-title collapse-header">Import</div>
+      <div class="collapse-body">
       <div style="font-size:13px; color:var(--text-dim); margin-bottom:12px;">Pick a CSV or JSON file. The app auto-detects the format. Importing replaces all current data — export first if you want to merge.</div>
       <button class="btn btn-secondary" id="importBtn">📤 Choose file to import</button>
       <input type="file" id="importFile" accept=".json,.csv,text/csv,application/json" style="display:none;">
+      </div>
     </div>
 
     <!-- ACCOUNT -->
-    <div class="card">
-      <div class="card-title">Account</div>
+    <div class="card collapsible" data-collapse-key="account">
+      <div class="card-title collapse-header">Account</div>
+      <div class="collapse-body">
       <div style="font-size:13px; color:var(--text-faint); margin-bottom:4px;">Signed in as</div>
       <div id="acctEmail" style="font-size:14px; font-weight:500; margin-bottom:12px; word-break:break-all;">—</div>
       <button id="logoutBtn" type="button" class="btn btn-secondary" style="width:100%;">Log out</button>
+      </div>
     </div>
 
     <!-- DESTRUCTIVE -->
-    <div class="card">
-      <div class="card-title">Danger zone</div>
+    <div class="card collapsible" data-collapse-key="danger">
+      <div class="card-title collapse-header">Danger zone</div>
+      <div class="collapse-body">
       <button class="btn btn-danger" id="clearBtn">🗑 Clear all logs</button>
+      </div>
     </div>
 
     <!-- VERSION FOOTER -->
@@ -12822,6 +12860,28 @@ async function init() {
       $('#clearConfirmBtn').textContent = 'Delete everything';
       $('#clearConfirmBtn').disabled = false;
     }
+  });
+
+  // Collapsible Settings sections — keeps the page tidy as it grows. Each
+  // .card.collapsible header toggles its body; state is remembered per
+  // section in localStorage. Default is collapsed (clean first view).
+  document.querySelectorAll('#view-settings .card.collapsible').forEach(card => {
+    const header = card.querySelector('.collapse-header');
+    if (!header) return;
+    const key = 'settings_collapse_' + (card.dataset.collapseKey || '');
+    const saved = localStorage.getItem(key);
+    card.classList.toggle('collapsed', saved === null ? true : saved === '1');
+    header.setAttribute('role', 'button');
+    header.setAttribute('tabindex', '0');
+    const toggle = () => {
+      const collapsed = !card.classList.contains('collapsed');
+      card.classList.toggle('collapsed', collapsed);
+      localStorage.setItem(key, collapsed ? '1' : '0');
+    };
+    header.addEventListener('click', toggle);
+    header.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
   });
 
   // Refresh export preview when user lands on Settings tab
