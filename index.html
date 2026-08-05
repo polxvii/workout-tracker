@@ -13,7 +13,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Workout Tracker</title>
-<meta name="app-version" content="1.13">
+<meta name="app-version" content="1.14">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
@@ -1319,7 +1319,7 @@ select {
         Your data is private. Only you can access it.
       </div>
       <div style="text-align:center; font-size:10px; color:var(--text-faint); margin-top:6px; opacity:0.7;">
-        v1.13
+        v1.14
       </div>
     </div>
   </div>
@@ -1468,6 +1468,9 @@ select {
 
       <div style="margin-top: 14px;">
         <button class="btn btn-primary" id="saveBtn">✓ Save workout</button>
+      </div>
+      <div id="deleteLogWrap" style="margin-top:8px; display:none;">
+        <button class="btn btn-danger" id="deleteLogBtn" style="width:100%;">🗑 Delete this logged exercise</button>
       </div>
     </div>
 
@@ -1977,7 +1980,7 @@ select {
 
     <!-- VERSION FOOTER -->
     <div style="text-align:center; padding:16px 0; font-size:11px; color:var(--text-faint);">
-      Workout Tracker v1.13
+      Workout Tracker v1.14
     </div>
 
   </section>
@@ -6757,6 +6760,12 @@ function renderSetsCard() {
       else showToast('Need at least one set', 'error');
     });
   });
+
+  // "Delete this logged exercise" — only meaningful when we're editing an
+  // entry that's already logged for today (continuing). Lets the user wipe a
+  // mistaken log straight from the Log screen instead of going to History.
+  const delWrap = $('#deleteLogWrap');
+  if (delWrap) delWrap.style.display = (continuingLogId && !isNewSession) ? 'block' : 'none';
 }
 
 function saveCurrentWorkout() {
@@ -6826,6 +6835,27 @@ function saveCurrentWorkout() {
   renderExerciseGrid();
   renderSetsCard();
   populateProgressExercises();
+}
+
+// Delete the exercise entry already logged for today, from the Log screen.
+// Only reachable while continuing an existing log (the button is hidden
+// otherwise). Removes the whole entry — all its sets — in one tap, so a
+// mis-logged exercise no longer has to be fixed over in History.
+function deleteCurrentLog() {
+  if (!continuingLogId) return;
+  const ex = exerciseById(state.selectedExercise);
+  const name = ex ? ex.name : 'this exercise';
+  if (!confirm(`Delete today's log for "${name}"? All its sets will be removed. This cannot be undone.`)) return;
+  state.logs = state.logs.filter(l => l.id !== continuingLogId);
+  saveState();
+  continuingLogId = null;
+  isNewSession    = false;
+  currentSets = [{ reps: '', weight: '', note: '' }];
+  state.selectedExercise = null;
+  renderExerciseGrid();
+  renderSetsCard();
+  populateProgressExercises();
+  showToast('Log deleted');
 }
 
 // ============================================================
@@ -12613,6 +12643,10 @@ async function init() {
     renderSetsCard();
   });
   $('#saveBtn').addEventListener('click', saveCurrentWorkout);
+
+  // Delete today's already-logged entry for the selected exercise, straight
+  // from the Log screen (only shown while continuing an existing log).
+  $('#deleteLogBtn').addEventListener('click', deleteCurrentLog);
 
   // Re-render exercise grid when the log date changes — green "logged
   // today" dots depend on the selected date, so picking a different day
