@@ -721,6 +721,36 @@ select {
   color: white;
 }
 
+/* Drag handle on exercise cards — only shown in playlist mode, lets you
+   reorder the playlist straight from the Log grid. Bottom-right, where the
+   add-to-playlist ＋ sits in normal mode. touch-action:none so the drag
+   gesture doesn't scroll the grid on touch. */
+.exercise-drag-btn {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--text);
+  font-size: 15px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  z-index: 2;
+  font-family: inherit;
+  line-height: 1;
+  touch-action: none;
+}
+.exercise-card.dragging {
+  opacity: 0.5;
+  border-color: var(--primary);
+}
+
 /* Playlist chips on the Log screen */
 .pl-chip {
   display: inline-flex;
@@ -6687,11 +6717,15 @@ function renderExerciseGrid() {
       <div style="font-size:28px; line-height:1;">+</div>
       <div style="font-size:12px; font-weight:600;">Add custom</div>
     </div>`;
-  grid.innerHTML = filtered.map(e => `
+  const dragHint = (inPlaylistMode && filtered.length > 1)
+    ? `<div style="grid-column:1/-1; font-size:11px; color:var(--text-faint); margin:-2px 0 2px;">Drag <strong>≡</strong> on a card to reorder this playlist.</div>`
+    : '';
+  grid.innerHTML = dragHint + filtered.map(e => `
     <div class="exercise-card ${loggedIds.has(e.id) ? 'has-data' : ''}" data-id="${e.id}">
       <button class="exercise-info-btn" data-info="${e.id}" aria-label="Show details for ${escapeHtml(e.name)}" title="Show details">ⓘ</button>
       ${e.isCustom ? `<button class="exercise-delete-btn" data-delete-custom="${e.id}" aria-label="Delete custom exercise" title="Delete">×</button>` : ''}
       ${!inPlaylistMode ? `<button class="exercise-add-pl-btn" data-addpl="${e.id}" aria-label="Add ${escapeHtml(e.name)} to a playlist" title="Add to playlist">＋</button>` : ''}
+      ${inPlaylistMode ? `<button class="exercise-drag-btn" data-drag-handle aria-label="Drag to reorder" title="Drag to reorder">≡</button>` : ''}
       <div class="exercise-img">${exerciseImage(e.id)}</div>
       <div class="exercise-name">${escapeHtml(e.name)}</div>
       <div class="exercise-meta">${escapeHtml(e.bodyPart)} · ${escapeHtml(e.type)}</div>
@@ -6755,7 +6789,90 @@ function renderExerciseGrid() {
     });
   });
 
+  // Playlist mode: drag the ≡ handle to reorder cards, saved to the active
+  // playlist. A tap on the handle must not select the card for logging.
+  if (inPlaylistMode && activePl) {
+    grid.querySelectorAll('[data-drag-handle]').forEach(h =>
+      h.addEventListener('click', e => e.stopPropagation()));
+    enableGridDragReorder(grid, activePl);
+  }
+
   activateImagePlaceholders(grid);
+}
+
+// Nearest-card + before/after target for grid drag-reorder. The grid wraps
+// into multiple columns, so we pick the card whose center is closest to the
+// pointer, then insert in reading order: clearly below its center → after,
+// clearly above → before, roughly the same row → decide by x.
+function gridDropTarget(grid, x, y, dragging) {
+  let best = null, bestDist = Infinity;
+  grid.querySelectorAll('.exercise-card[data-id]').forEach(c => {
+    if (c === dragging) return;
+    const r = c.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const d = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+    if (d < bestDist) { bestDist = d; best = { ref: c, cx, cy }; }
+  });
+  if (!best) return null;
+  const after = y > best.cy + 4 ? true : (y < best.cy - 4 ? false : x > best.cx);
+  return { ref: best.ref, after };
+}
+
+// Drag-to-reorder for the playlist Log grid. Same touch-first approach as the
+// editor (raw touch events + mouse fallback, no pointer capture — see
+// enablePlDragReorder). Commits the new order to the playlist and re-renders.
+function enableGridDragReorder(grid, pl) {
+  grid.querySelectorAll('[data-drag-handle]').forEach(handle => {
+    const start = startEvt => {
+      if (startEvt.type === 'mousedown' && startEvt.button !== 0) return;
+      const card = handle.closest('.exercise-card');
+      if (!card) return;
+      startEvt.preventDefault();
+      startEvt.stopPropagation();
+      const isTouch = startEvt.type === 'touchstart';
+      card.classList.add('dragging');
+
+      const getX = ev => isTouch ? (ev.touches[0] || ev.changedTouches[0]).clientX : ev.clientX;
+      const getY = ev => isTouch ? (ev.touches[0] || ev.changedTouches[0]).clientY : ev.clientY;
+      const onMove = ev => {
+        if (ev.cancelable) ev.preventDefault();
+        const t = gridDropTarget(grid, getX(ev), getY(ev), card);
+        if (!t) return;
+        if (t.after) grid.insertBefore(card, t.ref.nextSibling);
+        else grid.insertBefore(card, t.ref);
+      };
+      const finish = () => {
+        if (isTouch) {
+          document.removeEventListener('touchmove', onMove, { passive: false });
+          document.removeEventListener('touchend', finish);
+          document.removeEventListener('touchcancel', finish);
+        } else {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', finish);
+        }
+        card.classList.remove('dragging');
+        const newOrder = [...grid.querySelectorAll('.exercise-card[data-id]')].map(c => c.dataset.id);
+        const changed = newOrder.length !== pl.exerciseIds.length
+          || newOrder.some((id, i) => id !== pl.exerciseIds[i]);
+        if (changed) {
+          pl.exerciseIds = newOrder;
+          saveState();
+          syncCustomToRemote().catch(e => console.warn('Playlist sync failed:', e));
+        }
+        renderExerciseGrid();
+      };
+      if (isTouch) {
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', finish);
+        document.addEventListener('touchcancel', finish);
+      } else {
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', finish);
+      }
+    };
+    handle.addEventListener('touchstart', start, { passive: false });
+    handle.addEventListener('mousedown', start);
+  });
 }
 
 let currentSets      = [{ reps: '', weight: '', note: '' }];
