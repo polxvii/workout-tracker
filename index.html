@@ -7514,39 +7514,56 @@ function plDragAfterElement(cont, y) {
   }
   return closest.element;
 }
-// Pointer Events drag-to-reorder — works for both touch (iOS) and mouse.
-// We move the DOM node live and rebuild playlistDraft.exerciseIds on drop.
+// Drag-to-reorder. Uses raw touch events on iOS (Pointer Events + capture
+// break there: iOS drops the capture the moment we move the captured node
+// in the DOM, so pointermove stops firing mid-drag). Touch path listens on
+// document with a non-passive touchmove so we can preventDefault the scroll;
+// mouse path handles desktop. Both share onMove/finish. We move the DOM node
+// live and rebuild playlistDraft.exerciseIds on release.
 function enablePlDragReorder(cont) {
   cont.querySelectorAll('.pl-drag').forEach(handle => {
-    handle.addEventListener('pointerdown', e => {
-      if (e.button && e.button !== 0) return;   // ignore non-primary buttons
-      e.preventDefault();
+    const start = startEvt => {
+      if (startEvt.type === 'mousedown' && startEvt.button !== 0) return;  // left button only
       const row = handle.closest('.pl-item');
       if (!row) return;
-      try { row.setPointerCapture(e.pointerId); } catch (_) {}  // keep events flowing to row even as it moves
+      startEvt.preventDefault();
+      const isTouch = startEvt.type === 'touchstart';
       row.classList.add('pl-dragging');
       handle.style.cursor = 'grabbing';
 
+      const getY = ev => isTouch ? (ev.touches[0] || ev.changedTouches[0]).clientY : ev.clientY;
       const onMove = ev => {
-        const after = plDragAfterElement(cont, ev.clientY);
+        if (ev.cancelable) ev.preventDefault();   // stop the modal from scrolling on touch
+        const after = plDragAfterElement(cont, getY(ev));
         if (after == null) cont.appendChild(row);
         else if (after !== row) cont.insertBefore(row, after);
       };
       const finish = () => {
-        try { row.releasePointerCapture(e.pointerId); } catch (_) {}
-        row.removeEventListener('pointermove', onMove);
-        row.removeEventListener('pointerup', finish);
-        row.removeEventListener('pointercancel', finish);
+        if (isTouch) {
+          document.removeEventListener('touchmove', onMove, { passive: false });
+          document.removeEventListener('touchend', finish);
+          document.removeEventListener('touchcancel', finish);
+        } else {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', finish);
+        }
         row.classList.remove('pl-dragging');
         handle.style.cursor = 'grab';
         // Commit the new order, then re-render to refresh the position numbers.
         playlistDraft.exerciseIds = [...cont.querySelectorAll('.pl-item')].map(el => el.dataset.exId);
         renderPlItems();
       };
-      row.addEventListener('pointermove', onMove);
-      row.addEventListener('pointerup', finish);
-      row.addEventListener('pointercancel', finish);
-    });
+      if (isTouch) {
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', finish);
+        document.addEventListener('touchcancel', finish);
+      } else {
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', finish);
+      }
+    };
+    handle.addEventListener('touchstart', start, { passive: false });
+    handle.addEventListener('mousedown', start);
   });
 }
 function savePlaylistDraft() {
