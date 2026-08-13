@@ -745,6 +745,23 @@ select {
   color: var(--text-dim);
 }
 
+/* Draggable playlist items in the editor (Pointer Events based, so it
+   works with touch on iOS). .pl-drag is the grab handle. */
+.pl-drag {
+  touch-action: none;             /* stop the modal from scrolling mid-drag */
+  cursor: grab;
+  color: var(--text-faint);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 4px;
+  user-select: none;
+  flex: none;
+}
+.pl-item.pl-dragging {
+  opacity: 0.6;
+  border-color: var(--primary);
+}
+
 /* Toggle tile — used in Settings → Export "What to include" */
 .toggle-tile {
   display: flex;
@@ -7416,7 +7433,7 @@ function renderPlaylistEditor() {
     </div>
     <div style="font-weight:600; font-size:13px; margin:4px 0 8px;">Exercises (<span id="plCount">${d.exerciseIds.length}</span>)</div>
     <div id="plItems"></div>
-    <div style="font-size:12px; color:var(--text-dim); margin:2px 0 12px;">Add exercises with the <strong>＋</strong> button on any exercise card in the Log grid.</div>
+    <div style="font-size:12px; color:var(--text-dim); margin:2px 0 12px;">Drag <strong>≡</strong> to reorder. Add exercises with the <strong>＋</strong> button on any exercise card in the Log grid.</div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
       <button type="button" class="btn btn-secondary" id="plCancelBtn">Cancel</button>
       <button type="button" class="btn btn-primary" id="plSaveBtn">✓ Save</button>
@@ -7438,26 +7455,65 @@ function renderPlItems() {
   cont.innerHTML = d.exerciseIds.length ? d.exerciseIds.map((id, i) => {
     const ex = exerciseById(id);
     const nm = ex ? ex.name : '(deleted exercise)';
-    return `<div style="display:flex; align-items:center; gap:6px; padding:8px; background:var(--surface-2); border:1px solid var(--border); border-radius:6px; margin-bottom:6px;">
-      <div style="flex:1; min-width:0; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${i + 1}. ${escapeHtml(nm)}</div>
-      <button type="button" data-pl-up="${i}" ${i === 0 ? 'disabled' : ''} style="background:var(--surface); border:1px solid var(--border); border-radius:4px; width:30px; height:30px; cursor:pointer; color:var(--text);">↑</button>
-      <button type="button" data-pl-down="${i}" ${i === d.exerciseIds.length - 1 ? 'disabled' : ''} style="background:var(--surface); border:1px solid var(--border); border-radius:4px; width:30px; height:30px; cursor:pointer; color:var(--text);">↓</button>
-      <button type="button" data-pl-remove="${i}" style="background:var(--surface); border:1px solid var(--border); border-radius:4px; width:30px; height:30px; cursor:pointer; color:var(--danger);">×</button>
+    return `<div class="pl-item" data-ex-id="${escapeHtml(id)}" style="display:flex; align-items:center; gap:8px; padding:8px; background:var(--surface-2); border:1px solid var(--border); border-radius:6px; margin-bottom:6px;">
+      <span class="pl-drag" title="Drag to reorder" aria-label="Drag to reorder">≡</span>
+      <div style="width:20px; text-align:right; font-size:12px; color:var(--text-faint); flex:none;">${i + 1}</div>
+      <div style="flex:1; min-width:0; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(nm)}</div>
+      <button type="button" data-pl-remove="${i}" style="background:var(--surface); border:1px solid var(--border); border-radius:4px; width:30px; height:30px; cursor:pointer; color:var(--danger); flex:none;">×</button>
     </div>`;
-  }).join('') : `<div style="font-size:13px; color:var(--text-dim); padding:6px 0 10px;">No exercises yet — tap “＋ Add exercises”.</div>`;
-  cont.querySelectorAll('[data-pl-up]').forEach(b => b.addEventListener('click', () => movePlaylistItem(+b.dataset.plUp, -1)));
-  cont.querySelectorAll('[data-pl-down]').forEach(b => b.addEventListener('click', () => movePlaylistItem(+b.dataset.plDown, +1)));
+  }).join('') : `<div style="font-size:13px; color:var(--text-dim); padding:6px 0 10px;">No exercises yet — tap the <strong>＋</strong> button on an exercise card.</div>`;
   cont.querySelectorAll('[data-pl-remove]').forEach(b => b.addEventListener('click', () => {
     playlistDraft.exerciseIds.splice(+b.dataset.plRemove, 1);
     renderPlItems();
   }));
+  enablePlDragReorder(cont);
 }
-function movePlaylistItem(i, dir) {
-  const d = playlistDraft;
-  const j = i + dir;
-  if (j < 0 || j >= d.exerciseIds.length) return;
-  const t = d.exerciseIds[i]; d.exerciseIds[i] = d.exerciseIds[j]; d.exerciseIds[j] = t;
-  renderPlItems();
+// Which item should the dragged row be inserted before, given pointer Y?
+// Standard "closest midpoint below the pointer" sortable algorithm.
+function plDragAfterElement(cont, y) {
+  const els = [...cont.querySelectorAll('.pl-item:not(.pl-dragging)')];
+  let closest = { offset: -Infinity, element: null };
+  for (const el of els) {
+    const box = el.getBoundingClientRect();
+    const offset = y - (box.top + box.height / 2);
+    if (offset < 0 && offset > closest.offset) closest = { offset, element: el };
+  }
+  return closest.element;
+}
+// Pointer Events drag-to-reorder — works for both touch (iOS) and mouse.
+// We move the DOM node live and rebuild playlistDraft.exerciseIds on drop.
+function enablePlDragReorder(cont) {
+  cont.querySelectorAll('.pl-drag').forEach(handle => {
+    handle.addEventListener('pointerdown', e => {
+      if (e.button && e.button !== 0) return;   // ignore non-primary buttons
+      e.preventDefault();
+      const row = handle.closest('.pl-item');
+      if (!row) return;
+      try { row.setPointerCapture(e.pointerId); } catch (_) {}  // keep events flowing to row even as it moves
+      row.classList.add('pl-dragging');
+      handle.style.cursor = 'grabbing';
+
+      const onMove = ev => {
+        const after = plDragAfterElement(cont, ev.clientY);
+        if (after == null) cont.appendChild(row);
+        else if (after !== row) cont.insertBefore(row, after);
+      };
+      const finish = () => {
+        try { row.releasePointerCapture(e.pointerId); } catch (_) {}
+        row.removeEventListener('pointermove', onMove);
+        row.removeEventListener('pointerup', finish);
+        row.removeEventListener('pointercancel', finish);
+        row.classList.remove('pl-dragging');
+        handle.style.cursor = 'grab';
+        // Commit the new order, then re-render to refresh the position numbers.
+        playlistDraft.exerciseIds = [...cont.querySelectorAll('.pl-item')].map(el => el.dataset.exId);
+        renderPlItems();
+      };
+      row.addEventListener('pointermove', onMove);
+      row.addEventListener('pointerup', finish);
+      row.addEventListener('pointercancel', finish);
+    });
+  });
 }
 function savePlaylistDraft() {
   const d = playlistDraft;
