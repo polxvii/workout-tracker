@@ -6355,6 +6355,33 @@ function getPR(exerciseId) {
   return best;
 }
 
+// Best set from this exercise's most recent PAST session — the "last time"
+// numbers to chase. Returns { weight, reps, date } for the heaviest set
+// (ties broken by most reps), or null if never logged. `excludeLogId` lets
+// us skip the entry we're currently continuing so it always looks back a
+// session. Weight 0 = bodyweight/unweighted (we then show reps only).
+function getLastSessionBest(exerciseId, excludeLogId) {
+  const candidates = state.logs.filter(l =>
+    l.exerciseId === exerciseId && l.id !== excludeLogId && (l.sets || []).length > 0);
+  if (!candidates.length) return null;
+  let topDate = null;
+  for (const l of candidates) if (topDate === null || l.date > topDate) topDate = l.date;
+  // Among the most recent date, the last-logged entry is the latest session.
+  let log = null;
+  for (const l of candidates) if (l.date === topDate) log = l;
+  let best = null;
+  for (const s of (log.sets || [])) {
+    const w = parseFloat(s.weight);
+    const weight = (isFinite(w) && w > 0) ? w : 0;
+    const reps = parseInt(s.reps, 10) || 0;
+    if (reps <= 0 && weight <= 0) continue;
+    if (!best || weight > best.weight || (weight === best.weight && reps > best.reps)) {
+      best = { weight, reps };
+    }
+  }
+  return best ? { weight: best.weight, reps: best.reps, date: topDate } : null;
+}
+
 // Returns true if the given set's weight ties the all-time PR weight
 // for that exercise. Used to render a ⭐ badge in History — every set
 // that hit the heaviest weight earns the star, regardless of reps.
@@ -6743,6 +6770,12 @@ function renderSetsCard() {
   // Title + PR badge. PR (max weight ever logged for this exercise) makes
   // it obvious what bar you're chasing this session. Hidden if no PR yet.
   const pr = getPR(ex.id);
+  // "Last time" top set from the previous session — the numbers to beat.
+  // Skips the entry we're continuing so it always looks back a session.
+  const lastBest = getLastSessionBest(ex.id, continuingLogId);
+  const lastBadge = lastBest
+    ? `<span style="color:var(--text-dim);">🕑 Last <strong style="color:var(--text);">${lastBest.weight > 0 ? lastBest.weight + ' × ' + lastBest.reps : lastBest.reps + ' reps'}</strong></span>`
+    : '';
   // Show "↩ continuing" + "New session" only when we loaded sets from today's log
   // AND the user hasn't explicitly started a new session yet.
   const today2 = $('#logDate').value || todayISO();
@@ -6756,9 +6789,10 @@ function renderSetsCard() {
     : '';
 
   // PR + badges always on a second line so long exercise names don't cause wrapping
-  const subLine = (pr || showContinue)
-    ? `<div style="font-size:12px; font-weight:400; color:var(--text-dim); margin-top:2px; display:flex; align-items:center; gap:8px;">
+  const subLine = (pr || lastBest || showContinue)
+    ? `<div style="font-size:12px; font-weight:400; color:var(--text-dim); margin-top:2px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
          ${pr ? `<span style="font-weight:700; color:#f59e0b;">⭐ PR ${pr.weight}</span>` : ''}
+         ${lastBadge}
          ${continueBadge}${newSessionBtn}
        </div>`
     : '';
