@@ -787,7 +787,7 @@ select {
   user-select: none;
   flex: none;
 }
-.pl-item.pl-dragging {
+.drag-active {
   opacity: 0.6;
   border-color: var(--primary);
 }
@@ -7536,7 +7536,8 @@ function renderPlaylistManager() {
   $('#playlistModalTitle').textContent = 'Your playlists';
   const pls = state.routines || [];
   const rows = pls.length ? pls.map(p => `
-    <div style="display:flex; align-items:center; gap:8px; padding:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:6px; margin-bottom:8px;">
+    <div class="routine-row" data-drag-id="${escapeHtml(p.id)}" style="display:flex; align-items:center; gap:8px; padding:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:6px; margin-bottom:8px;">
+      <span class="pl-drag" title="Drag to reorder" aria-label="Drag to reorder">≡</span>
       <div style="flex:1; min-width:0;">
         <div style="font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.name)}</div>
         <div style="font-size:12px; color:var(--text-dim);">${p.exerciseIds.length} exercise${p.exerciseIds.length === 1 ? '' : 's'}</div>
@@ -7545,12 +7546,28 @@ function renderPlaylistManager() {
       <button type="button" class="btn btn-secondary" data-pl-del="${p.id}" style="width:auto; padding:6px 10px; color:var(--danger);">Delete</button>
     </div>`).join('')
     : `<div class="empty" style="padding:16px 0;"><div class="empty-title">No playlists yet</div><div style="font-size:13px; color:var(--text-dim);">Create one to group the exercises you train together.</div></div>`;
-  $('#playlistModalBody').innerHTML = rows
+  const reorderHint = pls.length > 1
+    ? `<div style="font-size:12px; color:var(--text-faint); margin:0 0 8px;">Drag <strong>≡</strong> to reorder your playlists.</div>`
+    : '';
+  $('#playlistModalBody').innerHTML = reorderHint + rows
     + `<button type="button" class="btn btn-primary" id="plNewBtn" style="width:100%; margin-top:6px;">＋ New playlist</button>`;
   const body = $('#playlistModalBody');
   body.querySelector('#plNewBtn').addEventListener('click', () => openPlaylistEditor(null));
   body.querySelectorAll('[data-pl-edit]').forEach(b => b.addEventListener('click', () => openPlaylistEditor(b.dataset.plEdit)));
   body.querySelectorAll('[data-pl-del]').forEach(b => b.addEventListener('click', () => deletePlaylist(b.dataset.plDel)));
+  // Drag the ≡ handle to reorder the playlists themselves. Order lives in
+  // state.routines and drives both this list and the Log-screen chips.
+  enableListDragReorder(body, '.routine-row', '.pl-drag', ids => {
+    const changed = ids.length !== state.routines.length
+      || ids.some((id, i) => id !== state.routines[i].id);
+    if (changed) {
+      state.routines = ids.map(id => state.routines.find(r => r.id === id)).filter(Boolean);
+      saveState();
+      syncCustomToRemote().catch(e => console.warn('Playlist sync failed:', e));
+      renderPlaylistBar();
+      renderPlaylistManager();
+    }
+  });
 }
 function deletePlaylist(id) {
   const p = playlistById(id);
@@ -7606,7 +7623,7 @@ function renderPlItems() {
   cont.innerHTML = d.exerciseIds.length ? d.exerciseIds.map((id, i) => {
     const ex = exerciseById(id);
     const nm = ex ? ex.name : '(deleted exercise)';
-    return `<div class="pl-item" data-ex-id="${escapeHtml(id)}" style="display:flex; align-items:center; gap:8px; padding:8px; background:var(--surface-2); border:1px solid var(--border); border-radius:6px; margin-bottom:6px;">
+    return `<div class="pl-item" data-drag-id="${escapeHtml(id)}" style="display:flex; align-items:center; gap:8px; padding:8px; background:var(--surface-2); border:1px solid var(--border); border-radius:6px; margin-bottom:6px;">
       <span class="pl-drag" title="Drag to reorder" aria-label="Drag to reorder">≡</span>
       <div style="width:20px; text-align:right; font-size:12px; color:var(--text-faint); flex:none;">${i + 1}</div>
       <div style="flex:1; min-width:0; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(nm)}</div>
@@ -7617,41 +7634,42 @@ function renderPlItems() {
     playlistDraft.exerciseIds.splice(+b.dataset.plRemove, 1);
     renderPlItems();
   }));
-  enablePlDragReorder(cont);
+  enableListDragReorder(cont, '.pl-item', '.pl-drag', ids => {
+    playlistDraft.exerciseIds = ids;
+    renderPlItems();
+  });
 }
-// Which item should the dragged row be inserted before, given pointer Y?
-// Standard "closest midpoint below the pointer" sortable algorithm.
-function plDragAfterElement(cont, y) {
-  const els = [...cont.querySelectorAll('.pl-item:not(.pl-dragging)')];
-  let closest = { offset: -Infinity, element: null };
-  for (const el of els) {
-    const box = el.getBoundingClientRect();
-    const offset = y - (box.top + box.height / 2);
-    if (offset < 0 && offset > closest.offset) closest = { offset, element: el };
-  }
-  return closest.element;
-}
-// Drag-to-reorder. Uses raw touch events on iOS (Pointer Events + capture
-// break there: iOS drops the capture the moment we move the captured node
-// in the DOM, so pointermove stops firing mid-drag). Touch path listens on
-// document with a non-passive touchmove so we can preventDefault the scroll;
-// mouse path handles desktop. Both share onMove/finish. We move the DOM node
-// live and rebuild playlistDraft.exerciseIds on release.
-function enablePlDragReorder(cont) {
-  cont.querySelectorAll('.pl-drag').forEach(handle => {
+// Generic touch-first drag-to-reorder for a vertical list. Rows carry a
+// data-drag-id and each has a handle matching handleSel; on release we call
+// onReorder(newIds) with the DOM order. Uses raw touch events (not Pointer
+// Events): iOS drops pointer capture the moment the captured node moves in
+// the DOM, which freezes the drag. Touch path listens on document with a
+// non-passive touchmove so we can preventDefault the scroll; mouse path
+// handles desktop. Shared by the playlist editor and the playlist manager.
+function enableListDragReorder(cont, rowSel, handleSel, onReorder) {
+  const afterEl = (y) => {
+    let closest = { offset: -Infinity, el: null };
+    cont.querySelectorAll(rowSel + ':not(.drag-active)').forEach(el => {
+      const b = el.getBoundingClientRect();
+      const offset = y - (b.top + b.height / 2);
+      if (offset < 0 && offset > closest.offset) closest = { offset, el };
+    });
+    return closest.el;
+  };
+  cont.querySelectorAll(handleSel).forEach(handle => {
     const start = startEvt => {
       if (startEvt.type === 'mousedown' && startEvt.button !== 0) return;  // left button only
-      const row = handle.closest('.pl-item');
+      const row = handle.closest(rowSel);
       if (!row) return;
       startEvt.preventDefault();
       const isTouch = startEvt.type === 'touchstart';
-      row.classList.add('pl-dragging');
+      row.classList.add('drag-active');
       handle.style.cursor = 'grabbing';
 
       const getY = ev => isTouch ? (ev.touches[0] || ev.changedTouches[0]).clientY : ev.clientY;
       const onMove = ev => {
         if (ev.cancelable) ev.preventDefault();   // stop the modal from scrolling on touch
-        const after = plDragAfterElement(cont, getY(ev));
+        const after = afterEl(getY(ev));
         if (after == null) cont.appendChild(row);
         else if (after !== row) cont.insertBefore(row, after);
       };
@@ -7664,11 +7682,9 @@ function enablePlDragReorder(cont) {
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup', finish);
         }
-        row.classList.remove('pl-dragging');
+        row.classList.remove('drag-active');
         handle.style.cursor = 'grab';
-        // Commit the new order, then re-render to refresh the position numbers.
-        playlistDraft.exerciseIds = [...cont.querySelectorAll('.pl-item')].map(el => el.dataset.exId);
-        renderPlItems();
+        onReorder([...cont.querySelectorAll(rowSel)].map(el => el.dataset.dragId));
       };
       if (isTouch) {
         document.addEventListener('touchmove', onMove, { passive: false });
