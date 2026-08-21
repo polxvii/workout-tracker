@@ -1782,15 +1782,9 @@ select {
               <div></div>
             </div>
 
-            <div class="form-row" id="cardioMachineRow" style="display:none;">
-              <div>
-                <label for="cardioSpeed">Avg speed (km/h)</label>
-                <input type="text" id="cardioSpeed" inputmode="decimal" placeholder="—" autocomplete="off">
-              </div>
-              <div>
-                <label for="cardioIncline">Incline (%)</label>
-                <input type="text" id="cardioIncline" inputmode="decimal" placeholder="—" autocomplete="off">
-              </div>
+            <div class="form-group" id="cardioMachineRow" style="display:none;">
+              <label>Speed / incline by time <span style="color:var(--text-faint); font-weight:400; font-size:11px;">— one row is fine</span></label>
+              <div id="cardioProfile"></div>
             </div>
 
             <div class="form-group">
@@ -9579,7 +9573,13 @@ function renderCardioActivityGrid() {
         renderCardioActivityGrid();
         const a = cardioActivityById(selectedCardioActivity);
         if (a && a.units && a.units[0]) $('#cardioDistanceUnit').value = a.units[0];
-        $('#cardioMachineRow').style.display = (a && a.machine) ? 'grid' : 'none';
+        if (a && a.machine) {
+          $('#cardioMachineRow').style.display = 'block';
+          cardioProfileLevels = [{ start: '0', incline: '', speed: '' }];
+          renderCardioProfileUI('cardioProfile', cardioProfileLevels);
+        } else {
+          $('#cardioMachineRow').style.display = 'none';
+        }
         // Show the picker; hide both OCR and form sections (user chooses next)
         $('#cardioInputs').style.display = 'block';
         showCardioStage('picker');
@@ -9599,12 +9599,115 @@ function renderCardioActivityGrid() {
   }
 }
 
+// ----- Cardio speed/incline PROFILE (per-time-segment) -----
+// Machine cardio (treadmill etc.) records a list of levels: each is a start
+// minute + incline% + speed. One row = the simple case. We derive a single
+// incline (max) and speed (avg) for Progress / CSV / History summaries so the
+// rest of the app keeps working; the full profile lives on the log + JSON backup.
+let cardioProfileLevels     = [{ start: '0', incline: '', speed: '' }];
+let cardioEditProfileLevels = [{ start: '0', incline: '', speed: '' }];
+
+function renderCardioProfileUI(containerId, levels) {
+  const cont = document.getElementById(containerId);
+  if (!cont) return;
+  cont.innerHTML = `
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 34px; gap:6px; margin-bottom:4px;">
+      <div style="font-size:10px; color:var(--text-faint); text-align:center;">Start (min)</div>
+      <div style="font-size:10px; color:var(--text-faint); text-align:center;">Incline %</div>
+      <div style="font-size:10px; color:var(--text-faint); text-align:center;">Speed km/h</div>
+      <div></div>
+    </div>
+    ${levels.map((lv, i) => `
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 34px; gap:6px; margin-bottom:6px;">
+        <input type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(String(lv.start || ''))}" data-i="${i}" data-f="start" autocomplete="off" style="text-align:center;">
+        <input type="text" inputmode="decimal" placeholder="—" value="${escapeHtml(String(lv.incline || ''))}" data-i="${i}" data-f="incline" autocomplete="off" style="text-align:center;">
+        <input type="text" inputmode="decimal" placeholder="—" value="${escapeHtml(String(lv.speed || ''))}" data-i="${i}" data-f="speed" autocomplete="off" style="text-align:center;">
+        <button type="button" class="btn-remove" data-cp-remove="${i}" aria-label="Remove level"${levels.length <= 1 ? ' style="visibility:hidden;"' : ''}>×</button>
+      </div>`).join('')}
+    <button type="button" data-cp-add="1" style="background:none; border:1px dashed var(--border); border-radius:var(--radius-sm); color:var(--text-dim); font-family:inherit; font-size:12px; cursor:pointer; padding:6px 10px;">+ Add level</button>`;
+  cont.querySelectorAll('input[data-f]').forEach(inp => {
+    inp.addEventListener('input', e => { levels[+e.target.dataset.i][e.target.dataset.f] = e.target.value; });
+  });
+  cont.querySelectorAll('[data-cp-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (levels.length > 1) { levels.splice(+btn.dataset.cpRemove, 1); renderCardioProfileUI(containerId, levels); }
+    });
+  });
+  cont.querySelector('[data-cp-add]').addEventListener('click', () => {
+    levels.push({ start: '', incline: '', speed: '' });
+    renderCardioProfileUI(containerId, levels);
+  });
+}
+// Validate the profile inputs in-place (red border on bad ones). Returns true if OK.
+function validateCardioProfileInputs(containerId, levels) {
+  const cont = document.getElementById(containerId);
+  if (!cont) return true;
+  let ok = true;
+  levels.forEach((lv, i) => {
+    const check = (f, min, max, dec) => {
+      const inp = cont.querySelector(`input[data-i="${i}"][data-f="${f}"]`);
+      if (inp) inp.classList.remove('field-invalid');
+      const raw = String(lv[f] || '').trim();
+      if (raw === '') return;
+      const v = parseNumberInput(raw, { allowDecimal: dec });
+      if (v == null || v < min || v > max) { if (inp) inp.classList.add('field-invalid'); ok = false; }
+    };
+    check('start', 0, 600, false);
+    check('incline', 0, 30, true);
+    check('speed', 0, 60, true);
+  });
+  return ok;
+}
+// Parse the editable levels into stored profile rows (only rows with data).
+function buildCardioProfile(levels) {
+  const out = [];
+  for (const lv of levels) {
+    const inc = String(lv.incline || '').trim();
+    const spd = String(lv.speed || '').trim();
+    if (inc === '' && spd === '') continue;
+    out.push({
+      start:   parseNumberInput(String(lv.start || '0').trim(), { allowDecimal: false }) || 0,
+      incline: inc === '' ? null : parseNumberInput(inc, { allowDecimal: true }),
+      speed:   spd === '' ? null : parseNumberInput(spd, { allowDecimal: true }),
+    });
+  }
+  out.sort((a, b) => a.start - b.start);
+  return out;
+}
+// Single representative values for Progress / CSV / History: incline = max
+// reached, speed = average of the levels that recorded a speed.
+function deriveCardioSummary(profile) {
+  const inc = (profile || []).map(p => p.incline).filter(v => v != null);
+  const spd = (profile || []).map(p => p.speed).filter(v => v != null);
+  return {
+    incline: inc.length ? Math.max(...inc) : null,
+    speed:   spd.length ? Math.round((spd.reduce((a, b) => a + b, 0) / spd.length) * 100) / 100 : null,
+  };
+}
+// Turn a stored log's incline/speed(+profile) back into editable levels.
+function cardioLogToProfileLevels(log) {
+  if (log && Array.isArray(log.profile) && log.profile.length) {
+    return log.profile.map(p => ({
+      start:   p.start == null ? '' : String(p.start),
+      incline: p.incline == null ? '' : String(p.incline),
+      speed:   p.speed == null ? '' : String(p.speed),
+    }));
+  }
+  // Legacy record (single incline/speed) → one level at minute 0.
+  return [{
+    start: '0',
+    incline: (log && log.incline != null) ? String(log.incline) : '',
+    speed:   (log && log.speed   != null) ? String(log.speed)   : '',
+  }];
+}
+
 function clearCardioForm() {
   selectedCardioActivity = null;
   ['cardioDuration','cardioDistance','cardioAvgHr','cardioMaxHr','cardioCalories','cardioNote',
-   'cardioSpeed','cardioIncline',
    'cardioZ1','cardioZ2','cardioZ3','cardioZ4','cardioZ5','cardioPaste']
     .forEach(id => { const el = $('#' + id); if (el) el.value = ''; });
+  cardioProfileLevels = [{ start: '0', incline: '', speed: '' }];
+  renderCardioProfileUI('cardioProfile', cardioProfileLevels);
   // Clear any lingering inline validation marks (red borders + error text)
   clearAllFieldErrors($('#cardioFormSection'));
   $('#cardioInputs').style.display = 'none';
@@ -9666,11 +9769,7 @@ function saveCardioSession() {
   const calories = validateNumberField('cardioCalories', 'Calories', { min: 0, max: 5000, allowDecimal: false });
   if ($('#cardioCalories').value.trim() !== '' && calories == null) hasError = true;
 
-  const speed = validateNumberField('cardioSpeed', 'Avg speed', { min: 0, max: 60 });
-  if ($('#cardioSpeed').value.trim() !== '' && speed == null) hasError = true;
-
-  const incline = validateNumberField('cardioIncline', 'Incline', { min: 0, max: 30 });
-  if ($('#cardioIncline').value.trim() !== '' && incline == null) hasError = true;
+  if (!validateCardioProfileInputs('cardioProfile', cardioProfileLevels)) hasError = true;
 
   // HR zones: each accepts mm:ss (or bare minutes). Bad format → inline error.
   const z = {};
@@ -9693,6 +9792,8 @@ function saveCardioSession() {
 
   const date = $('#cardioDate').value || todayISO();
   const zones = zoneTotal > 0 ? z : null;
+  const cardioProfileArr = buildCardioProfile(cardioProfileLevels);
+  const cardioSummary = deriveCardioSummary(cardioProfileArr);
 
   const log = {
     id: 'C' + Date.now() + Math.random().toString(36).slice(2, 6),
@@ -9705,8 +9806,9 @@ function saveCardioSession() {
     avgHr,
     maxHr,
     calories,
-    speed,
-    incline,
+    speed: cardioSummary.speed,
+    incline: cardioSummary.incline,
+    ...(cardioProfileArr.length ? { profile: cardioProfileArr } : {}),
     zones,
     note: $('#cardioNote').value || '',
   };
@@ -9962,8 +10064,10 @@ function parseCardioPaste() {
                   || text.match(/(\d+(?:\.\d+)?)\s*km\/h/i)
                   || text.match(/(\d+(?:\.\d+)?)\s*kph/i);
   if (speedMatch && +speedMatch[1] > 0 && +speedMatch[1] < 60) {
-    if ($('#cardioMachineRow').style.display !== 'grid') $('#cardioMachineRow').style.display = 'grid';
-    $('#cardioSpeed').value = speedMatch[1];
+    $('#cardioMachineRow').style.display = 'block';
+    if (!cardioProfileLevels.length) cardioProfileLevels = [{ start: '0', incline: '', speed: '' }];
+    cardioProfileLevels[0].speed = speedMatch[1];
+    renderCardioProfileUI('cardioProfile', cardioProfileLevels);
     filled++;
   }
 
@@ -9971,8 +10075,10 @@ function parseCardioPaste() {
   const incline = text.match(/incline\s*[:=]?\s*(\d+(?:\.\d+)?)\s*%?/i)
               || text.match(/grade\s*[:=]?\s*(\d+(?:\.\d+)?)\s*%/i);
   if (incline && +incline[1] >= 0 && +incline[1] <= 30) {
-    if ($('#cardioMachineRow').style.display !== 'grid') $('#cardioMachineRow').style.display = 'grid';
-    $('#cardioIncline').value = incline[1];
+    $('#cardioMachineRow').style.display = 'block';
+    if (!cardioProfileLevels.length) cardioProfileLevels = [{ start: '0', incline: '', speed: '' }];
+    cardioProfileLevels[0].incline = incline[1];
+    renderCardioProfileUI('cardioProfile', cardioProfileLevels);
     filled++;
   }
 
