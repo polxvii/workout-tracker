@@ -6796,13 +6796,15 @@ function renderExerciseGrid() {
       if (todayLogs.length > 0) {
         const lastLog = todayLogs[todayLogs.length - 1];
         continuingLogId = lastLog.id;   // track so Save can update instead of insert
+        // Load the logged sets exactly — no trailing blank row. "Add set"
+        // duplicates the last real set, so a stray empty row here would just
+        // make Add copy blanks (the user had to delete it first).
         currentSets = lastLog.sets.map(s => ({
           reps:   String(s.reps   || ''),
           weight: String(s.weight ?? ''),
           note:   s.note || '',
           ...(s.drops && s.drops.length ? { drops: s.drops.map(d => ({ reps: String(d.reps || ''), weight: String(d.weight ?? '') })) } : {}),
         }));
-        currentSets.push({ reps: '', weight: '', note: '' });
       } else {
         currentSets = [{ reps: '', weight: '', note: '' }];
       }
@@ -12987,10 +12989,16 @@ async function init() {
   // set then tap "Add set" twice. Each set still has its own state, so
   // editing one doesn't change the others.
   $('#addSetBtn').addEventListener('click', () => {
-    const last = currentSets.length > 0 ? currentSets[currentSets.length - 1] : null;
+    // Copy the most recent set that actually has values, so Add works even if
+    // there's a trailing blank row (e.g. after editing) instead of copying blanks.
+    let src = null;
+    for (let i = currentSets.length - 1; i >= 0; i--) {
+      const s = currentSets[i];
+      if (String(s.reps).trim() !== '' || String(s.weight).trim() !== '') { src = s; break; }
+    }
     currentSets.push({
-      reps:   last && last.reps   !== '' ? last.reps   : '',
-      weight: last && last.weight !== '' ? last.weight : '',
+      reps:   src ? src.reps   : '',
+      weight: src ? src.weight : '',
       note: '',  // notes are per-set context, don't carry over
     });
     renderSetsCard();
