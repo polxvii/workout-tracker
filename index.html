@@ -6361,12 +6361,18 @@ function allExercises() {
 // drops the weight and keeps going, with no rest. Those extra bouts live in
 // s.drops = [{ reps, weight }]. These helpers give the whole-set totals so
 // reps/volume stats count the drops too. A plain set has no `drops`.
+// A set flagged `warmup: true` is a light prep set: it stays visible in
+// History but counts toward NO stat (reps, volume, avg weight, PR, set count),
+// so warm-ups never drag the working numbers down. These helpers return 0 for
+// a warm-up, which is enough to drop it from every reps/volume aggregation.
 function setTotalReps(s) {
+  if (s.warmup) return 0;
   let r = Number(s.reps) || 0;
   if (s.drops) for (const d of s.drops) r += Number(d.reps) || 0;
   return r;
 }
 function setVolume(s) {
+  if (s.warmup) return 0;
   let v = (s.weight != null ? s.weight * (Number(s.reps) || 0) : 0);
   if (s.drops) for (const d of s.drops) if (d.weight != null) v += d.weight * (Number(d.reps) || 0);
   return v;
@@ -6374,9 +6380,14 @@ function setVolume(s) {
 // Reps done at a known weight across the set + drops — the denominator that
 // pairs with setVolume() to get a rep-weighted average weight.
 function setWeightedReps(s) {
+  if (s.warmup) return 0;
   let n = (s.weight != null ? (Number(s.reps) || 0) : 0);
   if (s.drops) for (const d of s.drops) if (d.weight != null) n += Number(d.reps) || 0;
   return n;
+}
+// Count of working (non-warm-up) sets — used everywhere a "sets" total shows.
+function workingSetCount(sets) {
+  return (sets || []).reduce((n, s) => n + (s.warmup ? 0 : 1), 0);
 }
 
 function getPR(exerciseId) {
@@ -6393,6 +6404,7 @@ function getPR(exerciseId) {
     if (log.exerciseId !== exerciseId) continue;
     const sets = log.sets || [];
     for (const s of sets) {
+      if (s.warmup) continue;   // warm-ups never set a PR
       // Scan the main set and any dropset bouts (drops are usually lighter,
       // but include them so a heavy drop still counts).
       for (const x of [s, ...(s.drops || [])]) {
@@ -6442,7 +6454,7 @@ function isSetPR(log, setIdx) {
   const pr = getPR(log.exerciseId);
   if (!pr) return false;
   const s = (log.sets || [])[setIdx];
-  if (!s) return false;
+  if (!s || s.warmup) return false;
   return parseFloat(s.weight) === pr.weight;
 }
 
@@ -7194,21 +7206,22 @@ function renderHistory() {
     return;
   }
 
-  const totalSets = logs.reduce((s, l) => s + l.sets.length, 0);
+  const totalSets = logs.reduce((s, l) => s + workingSetCount(l.sets), 0);
   const totalReps = logs.reduce((s, l) => s + l.sets.reduce((a, x) => a + setTotalReps(x), 0), 0);
   const uniqueDays = new Set(logs.map(l => l.date)).size;
 
   const byExercise = {};
   logs.forEach(l => {
     if (!byExercise[l.exerciseId]) {
-      const maxW = Math.max(0, ...l.sets.map(s => s.weight ?? 0));
-      const setsAtMax = maxW > 0 ? l.sets.filter(s => (s.weight ?? 0) === maxW) : l.sets;
+      const working = l.sets.filter(s => !s.warmup);   // warm-ups aren't the "last weight"
+      const maxW = Math.max(0, ...working.map(s => s.weight ?? 0));
+      const setsAtMax = maxW > 0 ? working.filter(s => (s.weight ?? 0) === maxW) : working;
       const bestSet = setsAtMax.reduce((b, s) => !b || s.reps > b.reps ? s : b, null);
       byExercise[l.exerciseId] = { sessions: 0, totalSets: 0, totalReps: 0, totalWeight: 0, weightedSets: 0, lastDate: l.date, lastWeight: maxW > 0 ? maxW : null, lastReps: bestSet ? bestSet.reps : null };
     }
     const e = byExercise[l.exerciseId];
     e.sessions++;
-    e.totalSets += l.sets.length;
+    e.totalSets += workingSetCount(l.sets);
     e.totalReps += l.sets.reduce((s, x) => s + setTotalReps(x), 0);
     l.sets.forEach(s => {
       if (s.weight != null) { e.totalWeight += s.weight; e.weightedSets++; }
@@ -7387,7 +7400,7 @@ function renderHistory() {
           <div class="log-header">
             <div>
               <div class="log-name">${escapeHtml(ex.name)}</div>
-              <div class="log-meta">${escapeHtml(ex.bodyPart)} · ${escapeHtml(ex.type)} · ${l.sets.length} sets, ${totalReps} reps</div>
+              <div class="log-meta">${escapeHtml(ex.bodyPart)} · ${escapeHtml(ex.type)} · ${workingSetCount(l.sets)} sets, ${totalReps} reps</div>
             </div>
             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
               <div class="log-date">${formatDate(l.date)}</div>
@@ -8154,7 +8167,7 @@ function renderProgress() {
 
   const sessions = logs.map(l => {
     const totalReps = l.sets.reduce((s, x) => s + setTotalReps(x), 0);
-    const weights = l.sets.filter(s => s.weight != null).map(s => s.weight);
+    const weights = l.sets.filter(s => s.weight != null && !s.warmup).map(s => s.weight);
     // Weighted-avg weight: each set's weight counted once per rep, so a heavy
     // top set doesn't get drowned out by warm-up sets and vice-versa. Dropset
     // bouts count too (setVolume / setWeightedReps include them).
@@ -8163,7 +8176,7 @@ function renderProgress() {
     const avgWeight = weightedRepCount > 0 ? weightedSum / weightedRepCount
                     : (weights.length ? weights.reduce((s, x) => s + x, 0) / weights.length : null);
     return {
-      date: l.date, sets: l.sets.length, reps: totalReps,
+      date: l.date, sets: workingSetCount(l.sets), reps: totalReps,
       maxWeight: weights.length ? Math.max(...weights) : null,
       avgWeight,
       // Keep the raw numbers so we can re-aggregate by day correctly:
@@ -8201,7 +8214,7 @@ function renderProgress() {
   const totalSessions = sessions.length;
   const totalSets = sessions.reduce((s, x) => s + x.sets, 0);
   const totalReps = sessions.reduce((s, x) => s + x.reps, 0);
-  const allWeights = logs.flatMap(l => l.sets.filter(s => s.weight != null).map(s => s.weight));
+  const allWeights = logs.flatMap(l => l.sets.filter(s => s.weight != null && !s.warmup).map(s => s.weight));
   const maxWeight = allWeights.length ? Math.max(...allWeights) : null;
   const avgSets = totalSets / totalSessions;
   const avgReps = totalReps / totalSets;
@@ -8413,10 +8426,10 @@ function renderProgressAll() {
     const e = byEx[l.exerciseId];
     e.sessions++;
     e.days.add(l.date);
-    e.totalSets += l.sets.length;
+    e.totalSets += workingSetCount(l.sets);
     e.totalReps += l.sets.reduce((s, x) => s + setTotalReps(x), 0);
     l.sets.forEach(s => {
-      if (s.weight != null) {
+      if (s.weight != null && !s.warmup) {
         e.totalWeight += s.weight;
         e.weightedSets++;
         if (e.maxWeight == null || s.weight > e.maxWeight) e.maxWeight = s.weight;
@@ -8430,7 +8443,7 @@ function renderProgressAll() {
     const d = e.perDay[l.date];
     d.totalReps += l.sets.reduce((s, x) => s + setTotalReps(x), 0);
     l.sets.forEach(s => {
-      if (s.weight != null) {
+      if (s.weight != null && !s.warmup) {
         if (d.maxWeight == null || s.weight > d.maxWeight) d.maxWeight = s.weight;
       }
     });
@@ -8463,7 +8476,7 @@ function renderProgressAll() {
 
   // Overall totals
   const totalDays = new Set(logs.map(l => l.date)).size;
-  const totalSets = logs.reduce((s, l) => s + l.sets.length, 0);
+  const totalSets = logs.reduce((s, l) => s + workingSetCount(l.sets), 0);
   const totalReps = logs.reduce((s, l) => s + l.sets.reduce((a, x) => a + setTotalReps(x), 0), 0);
 
   // Color helper for change cells
