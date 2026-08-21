@@ -2489,9 +2489,9 @@ select {
       <div><label for="cardioEditMaxHr">Max HR</label><input type="text" id="cardioEditMaxHr" inputmode="numeric" autocomplete="off"></div>
     </div>
 
-    <div class="form-row" id="cardioEditMachineRow" style="display:none;">
-      <div><label for="cardioEditSpeed">Avg speed (km/h)</label><input type="text" id="cardioEditSpeed" inputmode="decimal" autocomplete="off"></div>
-      <div><label for="cardioEditIncline">Incline (%)</label><input type="text" id="cardioEditIncline" inputmode="decimal" autocomplete="off"></div>
+    <div class="form-group" id="cardioEditMachineRow" style="display:none;">
+      <label>Speed / incline by time <span style="color:var(--text-faint); font-weight:400; font-size:11px;">— one row is fine</span></label>
+      <div id="cardioEditProfile"></div>
     </div>
 
     <div class="form-group">
@@ -10496,7 +10496,10 @@ function _renderCardioEntryCardImpl(l) {
         ${l.maxHr ? `<div class="set-chip">Max HR: <strong>${l.maxHr}</strong></div>` : ''}
         ${l.calories ? `<div class="set-chip">🔥 <strong>${l.calories}</strong> kcal</div>` : ''}
       </div>` : ''}
-      ${l.speed != null || l.incline != null ? `<div class="log-sets" style="margin-top:6px;">
+      ${(Array.isArray(l.profile) && l.profile.length > 1) ? `<div class="log-sets" style="margin-top:6px;">
+        ${l.profile.map(p => `<div class="set-chip">${p.start}m:${p.incline != null ? ` <strong>${p.incline}</strong>%` : ''}${p.incline != null && p.speed != null ? ' ·' : ''}${p.speed != null ? ` <strong>${p.speed}</strong>km/h` : ''}</div>`).join('')}
+      </div>`
+      : (l.speed != null || l.incline != null) ? `<div class="log-sets" style="margin-top:6px;">
         ${l.speed != null ? `<div class="set-chip">Speed: <strong>${l.speed}</strong> km/h</div>` : ''}
         ${l.incline != null ? `<div class="set-chip">Incline: <strong>${l.incline}</strong>%</div>` : ''}
       </div>` : ''}
@@ -10710,11 +10713,11 @@ function openCardioEditModal(id) {
   $('#cardioEditDistanceUnit').value = log.distanceUnit || 'km';
   $('#cardioEditAvgHr').value = log.avgHr != null ? log.avgHr : '';
   $('#cardioEditMaxHr').value = log.maxHr != null ? log.maxHr : '';
-  $('#cardioEditSpeed').value = log.speed != null ? log.speed : '';
-  $('#cardioEditIncline').value = log.incline != null ? log.incline : '';
-  // Show machine row if the activity is machine-based OR existing entry has values
-  const showMachine = (a && a.machine) || log.speed != null || log.incline != null;
-  $('#cardioEditMachineRow').style.display = showMachine ? 'grid' : 'none';
+  // Show machine row if the activity is machine-based OR the entry has data
+  const showMachine = (a && a.machine) || log.speed != null || log.incline != null || (Array.isArray(log.profile) && log.profile.length > 0);
+  $('#cardioEditMachineRow').style.display = showMachine ? 'block' : 'none';
+  cardioEditProfileLevels = cardioLogToProfileLevels(log);
+  renderCardioProfileUI('cardioEditProfile', cardioEditProfileLevels);
   [1,2,3,4,5].forEach(z => {
     const v = log.zones && log.zones['z'+z];
     $('#cardioEditZ' + z).value = (v != null && v > 0) ? formatDurationHMS(v) : '';
@@ -10754,10 +10757,7 @@ function saveCardioEdit() {
   if ($('#cardioEditAvgHr').value.trim() !== '' && avgHr == null) hasError = true;
   const maxHr = validateNumberField('cardioEditMaxHr', 'Max HR', { min: 30, max: 250, allowDecimal: false });
   if ($('#cardioEditMaxHr').value.trim() !== '' && maxHr == null) hasError = true;
-  const speed = validateNumberField('cardioEditSpeed', 'Avg speed', { min: 0, max: 60 });
-  if ($('#cardioEditSpeed').value.trim() !== '' && speed == null) hasError = true;
-  const incline = validateNumberField('cardioEditIncline', 'Incline', { min: 0, max: 30 });
-  if ($('#cardioEditIncline').value.trim() !== '' && incline == null) hasError = true;
+  if (!validateCardioProfileInputs('cardioEditProfile', cardioEditProfileLevels)) hasError = true;
 
   const z = {};
   let zoneTotal = 0;
@@ -10777,6 +10777,8 @@ function saveCardioEdit() {
   }
 
   const zones = zoneTotal > 0 ? z : null;
+  const editProfile = buildCardioProfile(cardioEditProfileLevels);
+  const editSummary = deriveCardioSummary(editProfile);
 
   log.date = newDate;
   log.durationMin = duration;
@@ -10784,8 +10786,10 @@ function saveCardioEdit() {
   log.distanceUnit = $('#cardioEditDistanceUnit').value;
   log.avgHr = avgHr;
   log.maxHr = maxHr;
-  log.speed = speed;
-  log.incline = incline;
+  log.speed = editSummary.speed;
+  log.incline = editSummary.incline;
+  if (editProfile.length) log.profile = editProfile;
+  else delete log.profile;
   log.zones = zones;
   log.note = $('#cardioEditNote').value || '';
   saveState();
