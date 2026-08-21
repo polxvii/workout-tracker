@@ -7449,11 +7449,12 @@ function openEditModal(logId) {
   if (!ex) return;
 
   editingLogId = logId;
-  // Deep copy sets so cancel actually cancels
+  // Deep copy sets (incl. dropset bouts) so cancel actually cancels
   editSets = log.sets.map(s => ({
     reps: String(s.reps),
     weight: s.weight == null ? '' : String(s.weight),
-    note: s.note || ''
+    note: s.note || '',
+    ...(s.drops && s.drops.length ? { drops: s.drops.map(d => ({ reps: String(d.reps), weight: d.weight == null ? '' : String(d.weight) })) } : {}),
   }));
 
   $('#editTitle').textContent = 'Edit: ' + ex.name;
@@ -7889,15 +7890,28 @@ function saveCustomCardio() {
 
 function renderEditSets() {
   const container = $('#editSetsContainer');
-  container.innerHTML = editSets.map((s, i) => `
-    <div class="set-row">
-      <div class="set-num">${i + 1}</div>
-      <input type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(String(s.reps || ''))}" data-i="${i}" data-f="reps" autocomplete="off">
-      <input type="text" inputmode="decimal" placeholder="0" value="${escapeHtml(String(s.weight || ''))}" data-i="${i}" data-f="weight" autocomplete="off">
-      <input type="text" placeholder="—" value="${escapeHtml(s.note)}" data-i="${i}" data-f="note">
-      <button class="btn-remove" data-edit-remove="${i}" aria-label="Remove">×</button>
-    </div>
-  `).join('');
+  container.innerHTML = editSets.map((s, i) => {
+    const dropRows = (s.drops || []).map((d, di) => `
+      <div class="set-row drop-row">
+        <div class="set-num" style="color:var(--text-faint); font-weight:400;">↳</div>
+        <input type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(String(d.reps || ''))}" data-i="${i}" data-di="${di}" data-f="reps" autocomplete="off">
+        <input type="text" inputmode="decimal" placeholder="0" value="${escapeHtml(String(d.weight || ''))}" data-i="${i}" data-di="${di}" data-f="weight" autocomplete="off">
+        <div style="font-size:11px; color:var(--text-faint); align-self:center;">drop ${di + 1}</div>
+        <button class="btn-remove" data-edit-remove="${i}" data-di="${di}" aria-label="Remove drop">×</button>
+      </div>`).join('');
+    return `
+    <div class="set-group">
+      <div class="set-row">
+        <div class="set-num">${i + 1}</div>
+        <input type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(String(s.reps || ''))}" data-i="${i}" data-f="reps" autocomplete="off">
+        <input type="text" inputmode="decimal" placeholder="0" value="${escapeHtml(String(s.weight || ''))}" data-i="${i}" data-f="weight" autocomplete="off">
+        <input type="text" placeholder="—" value="${escapeHtml(s.note)}" data-i="${i}" data-f="note">
+        <button class="btn-remove" data-edit-remove="${i}" aria-label="Remove">×</button>
+      </div>
+      ${dropRows}
+      <button type="button" class="add-drop-btn" data-edit-adddrop="${i}" style="background:none; border:none; color:var(--primary); font-family:inherit; font-size:12px; cursor:pointer; padding:0 0 6px 48px;">+ drop</button>
+    </div>`;
+  }).join('');
 
   container.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('input', e => {
@@ -7909,18 +7923,32 @@ function renderEditSets() {
       } else if (f === 'weight') {
         e.target.classList.toggle('field-invalid', val !== '' && !/^\d+(\.\d+)?$/.test(val));
       }
-      editSets[i][f] = val;
+      const di = e.target.dataset.di;
+      if (di !== undefined) editSets[i].drops[+di][f] = val;
+      else editSets[i][f] = val;
     });
   });
   container.querySelectorAll('[data-edit-remove]').forEach(btn => {
     btn.addEventListener('click', e => {
-      const i = +e.currentTarget.dataset.editRemove;
-      if (editSets.length > 1) {
-        editSets.splice(i, 1);
+      const el = e.currentTarget;
+      const i = +el.dataset.editRemove;
+      const di = el.dataset.di;
+      if (di !== undefined) {
+        editSets[i].drops.splice(+di, 1);
+        if (!editSets[i].drops.length) delete editSets[i].drops;
         renderEditSets();
-      } else {
-        showToast('Need at least one set', 'error');
+        return;
       }
+      if (editSets.length > 1) { editSets.splice(i, 1); renderEditSets(); }
+      else showToast('Need at least one set', 'error');
+    });
+  });
+  container.querySelectorAll('[data-edit-adddrop]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.editAdddrop;
+      if (!editSets[i].drops) editSets[i].drops = [];
+      editSets[i].drops.push({ reps: '', weight: '' });
+      renderEditSets();
     });
   });
 }
@@ -7949,6 +7977,16 @@ function saveEdit() {
       showToast(`Set ${i + 1}: weight must be a number`, 'error');
       return;
     }
+    for (let di = 0; di < (s.drops || []).length; di++) {
+      const dr = String(s.drops[di].reps   || '').trim();
+      const dw = String(s.drops[di].weight || '').trim();
+      if (dr !== '' && parseNumberInput(dr, { allowDecimal: false }) == null) {
+        showToast(`Set ${i + 1} drop ${di + 1}: reps must be a whole number`, 'error'); return;
+      }
+      if (dw !== '' && parseNumberInput(dw, { allowDecimal: true }) == null) {
+        showToast(`Set ${i + 1} drop ${di + 1}: weight must be a number`, 'error'); return;
+      }
+    }
   }
 
   const validSets = editSets
@@ -7956,11 +7994,21 @@ function saveEdit() {
       const r = String(s.reps || '').trim();
       return r !== '' && parseNumberInput(r, { allowDecimal: false }) > 0;
     })
-    .map(s => ({
-      reps: parseNumberInput(String(s.reps).trim(), { allowDecimal: false }),
-      weight: String(s.weight || '').trim() === '' ? null : parseNumberInput(String(s.weight).trim()),
-      note: s.note || ''
-    }));
+    .map(s => {
+      const out = {
+        reps: parseNumberInput(String(s.reps).trim(), { allowDecimal: false }),
+        weight: String(s.weight || '').trim() === '' ? null : parseNumberInput(String(s.weight).trim()),
+        note: s.note || ''
+      };
+      const drops = (s.drops || [])
+        .filter(d => { const r = String(d.reps || '').trim(); return r !== '' && parseNumberInput(r, { allowDecimal: false }) > 0; })
+        .map(d => ({
+          reps: parseNumberInput(String(d.reps).trim(), { allowDecimal: false }),
+          weight: String(d.weight || '').trim() === '' ? null : parseNumberInput(String(d.weight).trim())
+        }));
+      if (drops.length) out.drops = drops;
+      return out;
+    });
 
   if (validSets.length === 0) {
     showToast('Need at least one set with reps', 'error');
