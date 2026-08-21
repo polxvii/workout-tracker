@@ -6361,6 +6361,21 @@ function allExercises() {
 // Returns null when the exercise has no logs yet OR no logged set has a
 // numeric weight > 0. Caller is responsible for rendering "—" / hiding
 // the PR badge in that case.
+// A set can be a DROPSET: after the main reps×weight, the lifter immediately
+// drops the weight and keeps going, with no rest. Those extra bouts live in
+// s.drops = [{ reps, weight }]. These helpers give the whole-set totals so
+// reps/volume stats count the drops too. A plain set has no `drops`.
+function setTotalReps(s) {
+  let r = Number(s.reps) || 0;
+  if (s.drops) for (const d of s.drops) r += Number(d.reps) || 0;
+  return r;
+}
+function setVolume(s) {
+  let v = (s.weight != null ? s.weight * (Number(s.reps) || 0) : 0);
+  if (s.drops) for (const d of s.drops) if (d.weight != null) v += d.weight * (Number(d.reps) || 0);
+  return v;
+}
+
 function getPR(exerciseId) {
   // PR = the heaviest weight ever logged for this exercise. We don't
   // track reps here — the user explicitly wants weight-only because
@@ -6375,10 +6390,14 @@ function getPR(exerciseId) {
     if (log.exerciseId !== exerciseId) continue;
     const sets = log.sets || [];
     for (const s of sets) {
-      const w = parseFloat(s.weight);
-      if (!isFinite(w) || w <= 0) continue;
-      if (!best || w > best.weight) {
-        best = { weight: w, date: log.date };
+      // Scan the main set and any dropset bouts (drops are usually lighter,
+      // but include them so a heavy drop still counts).
+      for (const x of [s, ...(s.drops || [])]) {
+        const w = parseFloat(x.weight);
+        if (!isFinite(w) || w <= 0) continue;
+        if (!best || w > best.weight) {
+          best = { weight: w, date: log.date };
+        }
       }
     }
   }
@@ -6774,6 +6793,7 @@ function renderExerciseGrid() {
           reps:   String(s.reps   || ''),
           weight: String(s.weight ?? ''),
           note:   s.note || '',
+          ...(s.drops && s.drops.length ? { drops: s.drops.map(d => ({ reps: String(d.reps || ''), weight: String(d.weight ?? '') })) } : {}),
         }));
         currentSets.push({ reps: '', weight: '', note: '' });
       } else {
@@ -6926,15 +6946,28 @@ function renderSetsCard() {
   }
 
   const container = $('#setsContainer');
-  container.innerHTML = currentSets.map((s, i) => `
-    <div class="set-row">
-      <div class="set-num">${i + 1}</div>
-      <input type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(String(s.reps || ''))}" data-i="${i}" data-f="reps" autocomplete="off">
-      <input type="text" inputmode="decimal" placeholder="0" value="${escapeHtml(String(s.weight || ''))}" data-i="${i}" data-f="weight" autocomplete="off">
-      <input type="text" placeholder="—" value="${escapeHtml(s.note || '')}" data-i="${i}" data-f="note">
-      <button class="btn-remove" data-i="${i}" aria-label="Remove">×</button>
-    </div>
-  `).join('');
+  container.innerHTML = currentSets.map((s, i) => {
+    const dropRows = (s.drops || []).map((d, di) => `
+      <div class="set-row drop-row">
+        <div class="set-num" style="color:var(--text-faint); font-weight:400;">↳</div>
+        <input type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(String(d.reps || ''))}" data-i="${i}" data-di="${di}" data-f="reps" autocomplete="off">
+        <input type="text" inputmode="decimal" placeholder="0" value="${escapeHtml(String(d.weight || ''))}" data-i="${i}" data-di="${di}" data-f="weight" autocomplete="off">
+        <div style="font-size:11px; color:var(--text-faint); align-self:center;">drop ${di + 1}</div>
+        <button class="btn-remove" data-i="${i}" data-di="${di}" aria-label="Remove drop">×</button>
+      </div>`).join('');
+    return `
+    <div class="set-group">
+      <div class="set-row">
+        <div class="set-num">${i + 1}</div>
+        <input type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(String(s.reps || ''))}" data-i="${i}" data-f="reps" autocomplete="off">
+        <input type="text" inputmode="decimal" placeholder="0" value="${escapeHtml(String(s.weight || ''))}" data-i="${i}" data-f="weight" autocomplete="off">
+        <input type="text" placeholder="—" value="${escapeHtml(s.note || '')}" data-i="${i}" data-f="note">
+        <button class="btn-remove" data-i="${i}" aria-label="Remove">×</button>
+      </div>
+      ${dropRows}
+      <button type="button" class="add-drop-btn" data-adddrop="${i}" style="background:none; border:none; color:var(--primary); font-family:inherit; font-size:12px; cursor:pointer; padding:0 0 6px 48px;">+ drop</button>
+    </div>`;
+  }).join('');
 
   container.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('input', e => {
@@ -6956,14 +6989,32 @@ function renderSetsCard() {
           e.target.classList.remove('field-invalid');
         }
       }
-      currentSets[i][f] = val;
+      const di = e.target.dataset.di;
+      if (di !== undefined) currentSets[i].drops[+di][f] = val;
+      else currentSets[i][f] = val;
     });
   });
   container.querySelectorAll('.btn-remove').forEach(btn => {
     btn.addEventListener('click', e => {
-      const i = +e.currentTarget.dataset.i;
+      const el = e.currentTarget;
+      const i = +el.dataset.i;
+      const di = el.dataset.di;
+      if (di !== undefined) {   // remove one drop from this set
+        currentSets[i].drops.splice(+di, 1);
+        if (!currentSets[i].drops.length) delete currentSets[i].drops;
+        renderSetsCard();
+        return;
+      }
       if (currentSets.length > 1) { currentSets.splice(i, 1); renderSetsCard(); }
       else showToast('Need at least one set', 'error');
+    });
+  });
+  container.querySelectorAll('[data-adddrop]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.adddrop;
+      if (!currentSets[i].drops) currentSets[i].drops = [];
+      currentSets[i].drops.push({ reps: '', weight: '' });
+      renderSetsCard();
     });
   });
 
@@ -6994,6 +7045,17 @@ function saveCurrentWorkout() {
       showToast(`Set ${i + 1}: weight must be a number (e.g. 12.5)`, 'error');
       bad = true; break;
     }
+    for (let di = 0; di < (s.drops || []).length; di++) {
+      const dr = String(s.drops[di].reps   || '').trim();
+      const dw = String(s.drops[di].weight || '').trim();
+      if (dr !== '' && parseNumberInput(dr, { allowDecimal: false }) == null) {
+        showToast(`Set ${i + 1} drop ${di + 1}: reps must be a whole number`, 'error'); bad = true; break;
+      }
+      if (dw !== '' && parseNumberInput(dw, { allowDecimal: true }) == null) {
+        showToast(`Set ${i + 1} drop ${di + 1}: weight must be a number`, 'error'); bad = true; break;
+      }
+    }
+    if (bad) break;
   }
   if (bad) return;
 
@@ -7002,11 +7064,21 @@ function saveCurrentWorkout() {
       const r = String(s.reps || '').trim();
       return r !== '' && parseNumberInput(r, { allowDecimal: false }) > 0;
     })
-    .map(s => ({
-      reps: parseNumberInput(String(s.reps).trim(), { allowDecimal: false }),
-      weight: String(s.weight || '').trim() === '' ? null : parseNumberInput(String(s.weight).trim()),
-      note: s.note || ''
-    }));
+    .map(s => {
+      const out = {
+        reps: parseNumberInput(String(s.reps).trim(), { allowDecimal: false }),
+        weight: String(s.weight || '').trim() === '' ? null : parseNumberInput(String(s.weight).trim()),
+        note: s.note || ''
+      };
+      const drops = (s.drops || [])
+        .filter(d => { const r = String(d.reps || '').trim(); return r !== '' && parseNumberInput(r, { allowDecimal: false }) > 0; })
+        .map(d => ({
+          reps: parseNumberInput(String(d.reps).trim(), { allowDecimal: false }),
+          weight: String(d.weight || '').trim() === '' ? null : parseNumberInput(String(d.weight).trim())
+        }));
+      if (drops.length) out.drops = drops;
+      return out;
+    });
 
   if (validSets.length === 0) { showToast('Add at least one set with reps', 'error'); return; }
 
