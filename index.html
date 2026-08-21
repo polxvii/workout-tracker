@@ -6811,6 +6811,7 @@ function renderExerciseGrid() {
           reps:   String(s.reps   || ''),
           weight: String(s.weight ?? ''),
           note:   s.note || '',
+          ...(s.warmup ? { warmup: true } : {}),
           ...(s.drops && s.drops.length ? { drops: s.drops.map(d => ({ reps: String(d.reps || ''), weight: String(d.weight ?? '') })) } : {}),
         }));
       } else {
@@ -6963,8 +6964,11 @@ function renderSetsCard() {
   }
 
   const container = $('#setsContainer');
+  let wn = 0;   // working-set counter (warm-ups show "W", not a number)
   container.innerHTML = currentSets.map((s, i) => {
-    const dropRows = (s.drops || []).map((d, di) => `
+    const warm = !!s.warmup;
+    const num = warm ? 'W' : String(++wn);
+    const dropRows = warm ? '' : (s.drops || []).map((d, di) => `
       <div class="set-row drop-row">
         <div class="set-num" style="color:var(--text-faint); font-weight:400;">↳</div>
         <input type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(String(d.reps || ''))}" data-i="${i}" data-di="${di}" data-f="reps" autocomplete="off">
@@ -6974,15 +6978,18 @@ function renderSetsCard() {
       </div>`).join('');
     return `
     <div class="set-group">
-      <div class="set-row">
-        <div class="set-num">${i + 1}</div>
+      <div class="set-row"${warm ? ' style="opacity:0.55;"' : ''}>
+        <div class="set-num"${warm ? ' style="color:#f59e0b;"' : ''}>${num}</div>
         <input type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(String(s.reps || ''))}" data-i="${i}" data-f="reps" autocomplete="off">
         <input type="text" inputmode="decimal" placeholder="0" value="${escapeHtml(String(s.weight || ''))}" data-i="${i}" data-f="weight" autocomplete="off">
         <input type="text" placeholder="—" value="${escapeHtml(s.note || '')}" data-i="${i}" data-f="note">
         <button class="btn-remove" data-i="${i}" aria-label="Remove">×</button>
       </div>
       ${dropRows}
-      <button type="button" class="add-drop-btn" data-adddrop="${i}" style="background:none; border:none; color:var(--primary); font-family:inherit; font-size:12px; cursor:pointer; padding:0 0 6px 48px;">+ drop</button>
+      <div style="display:flex; gap:16px; align-items:center; padding:0 0 6px 48px;">
+        <button type="button" data-warmup="${i}" style="background:none; border:none; font-family:inherit; font-size:12px; cursor:pointer; padding:0; color:${warm ? '#f59e0b' : 'var(--text-faint)'};">${warm ? '✓ warm-up' : 'warm-up'}</button>
+        ${warm ? '' : `<button type="button" class="add-drop-btn" data-adddrop="${i}" style="background:none; border:none; color:var(--primary); font-family:inherit; font-size:12px; cursor:pointer; padding:0;">+ drop</button>`}
+      </div>
     </div>`;
   }).join('');
 
@@ -7031,6 +7038,14 @@ function renderSetsCard() {
       const i = +btn.dataset.adddrop;
       if (!currentSets[i].drops) currentSets[i].drops = [];
       currentSets[i].drops.push({ reps: '', weight: '' });
+      renderSetsCard();
+    });
+  });
+  container.querySelectorAll('[data-warmup]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.warmup;
+      currentSets[i].warmup = !currentSets[i].warmup;
+      if (currentSets[i].warmup) delete currentSets[i].drops;  // a warm-up can't be a dropset
       renderSetsCard();
     });
   });
@@ -7087,13 +7102,14 @@ function saveCurrentWorkout() {
         weight: String(s.weight || '').trim() === '' ? null : parseNumberInput(String(s.weight).trim()),
         note: s.note || ''
       };
+      if (s.warmup) out.warmup = true;
       const drops = (s.drops || [])
         .filter(d => { const r = String(d.reps || '').trim(); return r !== '' && parseNumberInput(r, { allowDecimal: false }) > 0; })
         .map(d => ({
           reps: parseNumberInput(String(d.reps).trim(), { allowDecimal: false }),
           weight: String(d.weight || '').trim() === '' ? null : parseNumberInput(String(d.weight).trim())
         }));
-      if (drops.length) out.drops = drops;
+      if (drops.length && !s.warmup) out.drops = drops;
       return out;
     });
 
@@ -7412,15 +7428,17 @@ function renderHistory() {
           </div>
           <div class="log-sets">
             ${l.sets.map((s, i) => {
+              const warm = !!s.warmup;
               const isPR = isSetPR(l, i);
               const prStar = isPR ? ' <span title="Personal Record" style="color:#f59e0b;">⭐</span>' : '';
-              const dropStr = (s.drops && s.drops.length)
+              const dropStr = (!warm && s.drops && s.drops.length)
                 ? s.drops.map(d => ` <span style="color:var(--text-faint)">→ ${d.reps}${d.weight != null ? '×' + d.weight : ''}</span>`).join('')
                   + ` <span style="color:var(--text-faint); font-size:10px;">(dropset)</span>`
                 : '';
+              const label = warm ? 'Warm-up' : ('Set ' + l.sets.slice(0, i + 1).filter(x => !x.warmup).length);
               return `
-              <div class="set-chip${isPR ? ' set-chip-pr' : ''}" title="${escapeHtml(s.note || (isPR ? 'Personal Record' : ''))}">
-                Set ${i + 1}: <strong>${s.reps}</strong> reps${s.weight != null ? ` × <strong>${s.weight}</strong>` : ''}${dropStr}${prStar}
+              <div class="set-chip${isPR ? ' set-chip-pr' : ''}" title="${escapeHtml(s.note || (warm ? 'Warm-up — not counted in stats' : (isPR ? 'Personal Record' : '')))}"${warm ? ' style="opacity:0.6;"' : ''}>
+                ${label}: <strong>${s.reps}</strong> reps${s.weight != null ? ` × <strong>${s.weight}</strong>` : ''}${dropStr}${prStar}
               </div>`;
             }).join('')}
           </div>
@@ -7463,6 +7481,7 @@ function openEditModal(logId) {
     reps: String(s.reps),
     weight: s.weight == null ? '' : String(s.weight),
     note: s.note || '',
+    ...(s.warmup ? { warmup: true } : {}),
     ...(s.drops && s.drops.length ? { drops: s.drops.map(d => ({ reps: String(d.reps), weight: d.weight == null ? '' : String(d.weight) })) } : {}),
   }));
 
@@ -7899,8 +7918,11 @@ function saveCustomCardio() {
 
 function renderEditSets() {
   const container = $('#editSetsContainer');
+  let wn = 0;   // working-set counter (warm-ups show "W")
   container.innerHTML = editSets.map((s, i) => {
-    const dropRows = (s.drops || []).map((d, di) => `
+    const warm = !!s.warmup;
+    const num = warm ? 'W' : String(++wn);
+    const dropRows = warm ? '' : (s.drops || []).map((d, di) => `
       <div class="set-row drop-row">
         <div class="set-num" style="color:var(--text-faint); font-weight:400;">↳</div>
         <input type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(String(d.reps || ''))}" data-i="${i}" data-di="${di}" data-f="reps" autocomplete="off">
@@ -7910,15 +7932,18 @@ function renderEditSets() {
       </div>`).join('');
     return `
     <div class="set-group">
-      <div class="set-row">
-        <div class="set-num">${i + 1}</div>
+      <div class="set-row"${warm ? ' style="opacity:0.55;"' : ''}>
+        <div class="set-num"${warm ? ' style="color:#f59e0b;"' : ''}>${num}</div>
         <input type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(String(s.reps || ''))}" data-i="${i}" data-f="reps" autocomplete="off">
         <input type="text" inputmode="decimal" placeholder="0" value="${escapeHtml(String(s.weight || ''))}" data-i="${i}" data-f="weight" autocomplete="off">
         <input type="text" placeholder="—" value="${escapeHtml(s.note)}" data-i="${i}" data-f="note">
         <button class="btn-remove" data-edit-remove="${i}" aria-label="Remove">×</button>
       </div>
       ${dropRows}
-      <button type="button" class="add-drop-btn" data-edit-adddrop="${i}" style="background:none; border:none; color:var(--primary); font-family:inherit; font-size:12px; cursor:pointer; padding:0 0 6px 48px;">+ drop</button>
+      <div style="display:flex; gap:16px; align-items:center; padding:0 0 6px 48px;">
+        <button type="button" data-edit-warmup="${i}" style="background:none; border:none; font-family:inherit; font-size:12px; cursor:pointer; padding:0; color:${warm ? '#f59e0b' : 'var(--text-faint)'};">${warm ? '✓ warm-up' : 'warm-up'}</button>
+        ${warm ? '' : `<button type="button" class="add-drop-btn" data-edit-adddrop="${i}" style="background:none; border:none; color:var(--primary); font-family:inherit; font-size:12px; cursor:pointer; padding:0;">+ drop</button>`}
+      </div>
     </div>`;
   }).join('');
 
@@ -7957,6 +7982,14 @@ function renderEditSets() {
       const i = +btn.dataset.editAdddrop;
       if (!editSets[i].drops) editSets[i].drops = [];
       editSets[i].drops.push({ reps: '', weight: '' });
+      renderEditSets();
+    });
+  });
+  container.querySelectorAll('[data-edit-warmup]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.editWarmup;
+      editSets[i].warmup = !editSets[i].warmup;
+      if (editSets[i].warmup) delete editSets[i].drops;
       renderEditSets();
     });
   });
@@ -8009,13 +8042,14 @@ function saveEdit() {
         weight: String(s.weight || '').trim() === '' ? null : parseNumberInput(String(s.weight).trim()),
         note: s.note || ''
       };
+      if (s.warmup) out.warmup = true;
       const drops = (s.drops || [])
         .filter(d => { const r = String(d.reps || '').trim(); return r !== '' && parseNumberInput(r, { allowDecimal: false }) > 0; })
         .map(d => ({
           reps: parseNumberInput(String(d.reps).trim(), { allowDecimal: false }),
           weight: String(d.weight || '').trim() === '' ? null : parseNumberInput(String(d.weight).trim())
         }));
-      if (drops.length) out.drops = drops;
+      if (drops.length && !s.warmup) out.drops = drops;
       return out;
     });
 
