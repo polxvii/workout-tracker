@@ -1736,6 +1736,10 @@ select {
 
           <!-- REVIEW & EDIT FORM (shown after method chosen) -->
           <div id="cardioFormSection" style="display:none;">
+            <div id="cardioContinuingBanner" style="display:none; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; padding:10px 12px; background:rgba(59,130,246,0.1); border:1px solid var(--primary); border-radius:6px; font-size:12px; color:var(--primary);">
+              <span>↩ Continuing today's session — finish it, or import the summary screenshot below.</span>
+              <button type="button" id="cardioNewSessionBtn" style="background:transparent; border:1px solid var(--primary); color:var(--primary); padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer; font-family:inherit; white-space:nowrap;">New session</button>
+            </div>
             <div id="cardioReviewBanner" style="display:none; margin-bottom:12px; padding:10px 12px; background:rgba(16,185,129,0.1); border:1px solid var(--success); border-radius:6px; font-size:12px; color:var(--success);">
               ✓ <strong>Review the fields below</strong> — anything missing or wrong, just type over it. Then tap Save.
               <div style="margin-top:8px;">
@@ -9278,6 +9282,7 @@ const CARDIO_ACTIVITIES = [
 ];
 
 let selectedCardioActivity = null;
+let continuingCardioId = null;   // id of today's cardio log we're resuming (null = new)
 let cardioSubview = 'log';   // 'log' | 'history' | 'progress'
 
 // Period for the cardio distance chart: 'day' | 'week' | 'month'.
@@ -9644,6 +9649,22 @@ function renderCardioActivityGrid() {
         renderCardioActivityGrid();
         const a = cardioActivityById(selectedCardioActivity);
         if (a && a.units && a.units[0]) $('#cardioDistanceUnit').value = a.units[0];
+        $('#cardioInputs').style.display = 'block';
+
+        // Resume an existing session for this activity + date (e.g. you saved
+        // the incline/speed profile mid-workout and came back to finish it).
+        const sessDate = $('#cardioDate').value || todayISO();
+        const todays = state.logs.filter(l => l.type === 'cardio' && l.activity === selectedCardioActivity && l.date === sessDate);
+        if (todays.length) {
+          loadCardioLogIntoForm(todays[todays.length - 1], a);
+          $('#cardioReviewBanner').style.display = 'none';
+          showCardioStage('form');
+          setTimeout(() => $('#cardioFormSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+          return;
+        }
+
+        continuingCardioId = null;
+        $('#cardioContinuingBanner').style.display = 'none';
         if (a && a.machine) {
           $('#cardioMachineRow').style.display = 'block';
           cardioProfileLevels = [{ start: '0', incline: '', speed: '' }];
@@ -9652,7 +9673,6 @@ function renderCardioActivityGrid() {
           $('#cardioMachineRow').style.display = 'none';
         }
         // Show the picker; hide both OCR and form sections (user chooses next)
-        $('#cardioInputs').style.display = 'block';
         showCardioStage('picker');
         setTimeout(() => $('#cardioInputs').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
       });
@@ -9810,6 +9830,8 @@ function cardioLogToProfileLevels(log) {
 
 function clearCardioForm() {
   selectedCardioActivity = null;
+  continuingCardioId = null;
+  const cb = $('#cardioContinuingBanner'); if (cb) cb.style.display = 'none';
   ['cardioDuration','cardioDistance','cardioAvgHr','cardioMaxHr','cardioCalories','cardioNote',
    'cardioZ1','cardioZ2','cardioZ3','cardioZ4','cardioZ5','cardioPaste']
     .forEach(id => { const el = $('#' + id); if (el) el.value = ''; });
@@ -9842,6 +9864,35 @@ function showCardioStage(stage) {
   $('#cardioFormSection').style.display  = (stage === 'form')   ? 'block' : 'none';
 }
 
+// Load a saved cardio log back into the Log form to resume/finish it.
+function loadCardioLogIntoForm(log, a) {
+  continuingCardioId = log.id;
+  selectedCardioActivity = log.activity;
+  $('#cardioDate').value      = log.date;
+  $('#cardioDuration').value  = log.durationMin ? formatDurationHMS(log.durationMin) : '';  // 0 = not filled yet → blank
+  $('#cardioDistance').value  = log.distance != null ? log.distance : '';
+  $('#cardioDistanceUnit').value = log.distanceUnit || (a && a.units && a.units[0]) || 'km';
+  $('#cardioAvgHr').value     = log.avgHr != null ? log.avgHr : '';
+  $('#cardioMaxHr').value     = log.maxHr != null ? log.maxHr : '';
+  $('#cardioCalories').value  = log.calories != null ? log.calories : '';
+  [1, 2, 3, 4, 5].forEach(z => {
+    const v = log.zones && log.zones['z' + z];
+    $('#cardioZ' + z).value = (v != null && v > 0) ? formatDurationHMS(v) : '';
+  });
+  $('#cardioNote').value = log.note || '';
+  const machine = (a && a.machine) || (Array.isArray(log.profile) && log.profile.length) || log.speed != null || log.incline != null;
+  if (machine) {
+    $('#cardioMachineRow').style.display = 'block';
+    cardioProfileLevels = cardioLogToProfileLevels(log);
+    renderCardioProfileUI('cardioProfile', cardioProfileLevels);
+  } else {
+    $('#cardioMachineRow').style.display = 'none';
+  }
+  clearAllFieldErrors($('#cardioFormSection'));
+  const banner = $('#cardioContinuingBanner');
+  if (banner) banner.style.display = 'flex';
+}
+
 function saveCardioSession() {
   if (!selectedCardioActivity) {
     showToast('Pick an activity first', 'error');
@@ -9856,9 +9907,12 @@ function saveCardioSession() {
   // — better UX than fix-one-tap-save-fail-fix-next loop.
   let hasError = false;
 
-  const duration = parseTimeInput($('#cardioDuration').value);
-  if (!duration || duration <= 0) {
-    showFieldError($('#cardioDuration'), 'Required — use mm:ss (e.g. 39:55)');
+  // Duration is optional now — you can save a session mid-workout with just
+  // the incline/speed profile and come back to finish it. If typed, it must parse.
+  const durRaw = $('#cardioDuration').value.trim();
+  const duration = parseTimeInput(durRaw) || 0;
+  if (durRaw !== '' && duration <= 0) {
+    showFieldError($('#cardioDuration'), 'Use mm:ss (e.g. 39:55)');
     hasError = true;
   }
 
@@ -9902,22 +9956,46 @@ function saveCardioSession() {
   const cardioProfileArr = buildCardioProfile(cardioProfileLevels);
   const cardioSummary = deriveCardioSummary(cardioProfileArr);
 
-  const log = {
-    id: 'C' + Date.now() + Math.random().toString(36).slice(2, 6),
-    type: 'cardio',
+  // Don't create a totally blank entry — need at least one meaningful field.
+  const hasAnything = duration > 0 || cardioProfileArr.length > 0 || distance != null
+                   || calories != null || avgHr != null || maxHr != null;
+  if (!hasAnything) {
+    showToast('Add some data first — duration, distance, or an incline/speed level', 'error');
+    return;
+  }
+
+  const fields = {
     date,
     activity: selectedCardioActivity,
     durationMin: duration,
     distance,
     distanceUnit: $('#cardioDistanceUnit').value,
-    avgHr,
-    maxHr,
-    calories,
+    avgHr, maxHr, calories,
     speed: cardioSummary.speed,
     incline: cardioSummary.incline,
-    ...(cardioProfileArr.length ? { profile: cardioProfileArr } : {}),
     zones,
     note: $('#cardioNote').value || '',
+  };
+
+  if (continuingCardioId) {
+    const existing = state.logs.find(l => l.id === continuingCardioId);
+    if (existing) {
+      Object.assign(existing, fields);
+      if (cardioProfileArr.length) existing.profile = cardioProfileArr; else delete existing.profile;
+      saveState();
+      showToast('Session updated');
+      clearCardioForm();
+      populateCardioActivitySelects();
+      return;
+    }
+    continuingCardioId = null;   // stale id — fall through to insert
+  }
+
+  const log = {
+    id: 'C' + Date.now() + Math.random().toString(36).slice(2, 6),
+    type: 'cardio',
+    ...fields,
+    ...(cardioProfileArr.length ? { profile: cardioProfileArr } : {}),
   };
   state.logs.push(log);
   saveState();
@@ -13668,6 +13746,24 @@ async function init() {
     showCardioStage('ocr');
     $('#cardioOcrFile').click();
     setTimeout(() => $('#cardioOcrSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  });
+
+  // "New session" on the continuing banner — start a fresh entry for the same
+  // activity instead of updating the resumed one.
+  $('#cardioNewSessionBtn').addEventListener('click', () => {
+    continuingCardioId = null;
+    $('#cardioContinuingBanner').style.display = 'none';
+    ['cardioDuration','cardioDistance','cardioAvgHr','cardioMaxHr','cardioCalories','cardioNote',
+     'cardioZ1','cardioZ2','cardioZ3','cardioZ4','cardioZ5']
+      .forEach(id => { const el = $('#' + id); if (el) el.value = ''; });
+    clearAllFieldErrors($('#cardioFormSection'));
+    const a = cardioActivityById(selectedCardioActivity);
+    if (a && a.machine) {
+      $('#cardioMachineRow').style.display = 'block';
+      cardioProfileLevels = [{ start: '0', incline: '', speed: '' }];
+      renderCardioProfileUI('cardioProfile', cardioProfileLevels);
+    }
+    showToast('Started a new session');
   });
 
   // Back from OCR section → return to the manual form if we came from its
