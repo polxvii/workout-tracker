@@ -1736,9 +1736,9 @@ select {
 
           <!-- REVIEW & EDIT FORM (shown after method chosen) -->
           <div id="cardioFormSection" style="display:none;">
-            <div id="cardioContinuingBanner" style="display:none; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; padding:10px 12px; background:rgba(59,130,246,0.1); border:1px solid var(--primary); border-radius:6px; font-size:12px; color:var(--primary);">
-              <span>↩ Continuing today's session — finish it, or import the summary screenshot below.</span>
-              <button type="button" id="cardioNewSessionBtn" style="background:transparent; border:1px solid var(--primary); color:var(--primary); padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer; font-family:inherit; white-space:nowrap;">New session</button>
+            <div id="cardioContinuingBanner" style="display:none; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; background:rgba(59,130,246,0.1); border:1px solid var(--primary); border-radius:6px; font-size:12px; color:var(--primary);">
+              <span style="flex:1; min-width:0;">↩ Continuing today's session — finish it, or import the summary screenshot below.</span>
+              <button type="button" id="cardioNewSessionBtn" style="background:transparent; border:1px solid var(--primary); color:var(--primary); padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer; font-family:inherit; white-space:nowrap; flex:none;">New session</button>
             </div>
             <div id="cardioReviewBanner" style="display:none; margin-bottom:12px; padding:10px 12px; background:rgba(16,185,129,0.1); border:1px solid var(--success); border-radius:6px; font-size:12px; color:var(--success);">
               ✓ <strong>Review the fields below</strong> — anything missing or wrong, just type over it. Then tap Save.
@@ -9756,19 +9756,27 @@ function renderCardioProfileUI(containerId, levels) {
 function validateCardioProfileInputs(containerId, levels) {
   const cont = document.getElementById(containerId);
   if (!cont) return true;
-  let ok = true;
+  let ok = true, msg = '';
+  const fail = (i, f, m) => {
+    const inp = cont.querySelector(`input[data-i="${i}"][data-f="${f}"]`);
+    if (inp) inp.classList.add('field-invalid');
+    if (!msg) msg = m;   // keep the first, most specific message
+    ok = false;
+  };
   levels.forEach((lv, i) => {
-    const check = (f, min, max, dec) => {
+    ['start', 'incline', 'speed'].forEach(f => {
       const inp = cont.querySelector(`input[data-i="${i}"][data-f="${f}"]`);
       if (inp) inp.classList.remove('field-invalid');
+    });
+    const check = (f, min, max, dec, m) => {
       const raw = String(lv[f] || '').trim();
       if (raw === '') return;
       const v = parseNumberInput(raw, { allowDecimal: dec });
-      if (v == null || v < min || v > max) { if (inp) inp.classList.add('field-invalid'); ok = false; }
+      if (v == null || v < min || v > max) fail(i, f, m);
     };
-    check('start', 0, 600, false);
-    check('incline', 0, 30, true);
-    check('speed', 0, 60, true);
+    check('start', 0, 600, false, 'Start must be a whole number of minutes (0–600).');
+    check('incline', 0, 30, true, 'Incline must be a number from 0 to 30 (%).');
+    check('speed', 0, 60, true, 'Speed must be a number from 0 to 60 (km/h).');
     // A non-first level that has data must declare a real start minute — don't
     // let a blank/unparseable start silently fall back to 0 and collide with
     // the first level (which is locked at 0).
@@ -9777,12 +9785,20 @@ function validateCardioProfileInputs(containerId, levels) {
       const startRaw = String(lv.start || '').trim();
       const startVal = parseNumberInput(startRaw, { allowDecimal: false });
       if (hasData && (startRaw === '' || startVal == null || startVal < 1)) {
-        const inp = cont.querySelector(`input[data-i="${i}"][data-f="start"]`);
-        if (inp) inp.classList.add('field-invalid');
-        ok = false;
+        fail(i, 'start', `Level ${i + 1}: fill in the start minute (when this incline/speed began).`);
       }
     }
   });
+  // Show one specific message below the whole builder (a per-cell message would
+  // land inside the grid and break its columns).
+  let errEl = cont.nextElementSibling;
+  if (!errEl || !errEl.classList || !errEl.classList.contains('field-error')) {
+    errEl = document.createElement('div');
+    errEl.className = 'field-error';
+    cont.parentElement.insertBefore(errEl, cont.nextSibling);
+  }
+  if (ok) { errEl.style.display = 'none'; }
+  else { errEl.textContent = msg; errEl.style.display = 'block'; }
   return ok;
 }
 // Parse the editable levels into stored profile rows (only rows with data).
