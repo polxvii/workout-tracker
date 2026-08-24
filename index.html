@@ -2491,6 +2491,11 @@ select {
       <div><label for="cardioEditMaxHr">Max HR</label><input type="text" id="cardioEditMaxHr" inputmode="numeric" autocomplete="off"></div>
     </div>
 
+    <div class="form-row">
+      <div><label for="cardioEditCalories">Calories (kcal)</label><input type="text" id="cardioEditCalories" inputmode="numeric" autocomplete="off"></div>
+      <div></div>
+    </div>
+
     <div class="form-group" id="cardioEditMachineRow" style="display:none;">
       <label>Speed / incline by time <span style="color:var(--text-faint); font-weight:400; font-size:11px;">— one row is fine</span></label>
       <div id="cardioEditProfile"></div>
@@ -8926,7 +8931,7 @@ function exportCsv() {
   // ── Strength CSV ─────────────────────────────────────────────────────
   // One row per SET, so each session expands to N rows.
   if (strengthLogs.length > 0) {
-    const headers = ['date', 'exercise_id', 'exercise_name', 'body_part', 'type', 'set_num', 'reps', 'weight', 'note'];
+    const headers = ['date', 'exercise_id', 'exercise_name', 'body_part', 'type', 'set_num', 'reps', 'weight', 'warmup', 'drops', 'note'];
     const rows = [];
     strengthLogs.forEach(l => {
       const ex = exerciseById(l.exerciseId);
@@ -8940,6 +8945,8 @@ function exportCsv() {
           set_num: i + 1,
           reps: s.reps,
           weight: s.weight != null ? s.weight : '',
+          warmup: s.warmup ? 1 : '',
+          drops: (s.drops || []).map(d => `${d.weight != null ? d.weight : ''}x${d.reps}`).join('|'),
           note: s.note || '',
         });
       });
@@ -8951,7 +8958,7 @@ function exportCsv() {
   // ── Cardio CSV ───────────────────────────────────────────────────────
   if (cardioLogs.length > 0) {
     const headers = ['date', 'activity', 'duration_min', 'distance', 'distance_unit',
-                     'avg_hr', 'max_hr', 'speed_kmh', 'incline_pct',
+                     'avg_hr', 'max_hr', 'calories_kcal', 'speed_kmh', 'incline_pct',
                      'z1_min', 'z2_min', 'z3_min', 'z4_min', 'z5_min', 'note'];
     const rows = cardioLogs.map(l => ({
       date: l.date,
@@ -9088,11 +9095,26 @@ function importCsvText(text, filename) {
         });
       }
       const log = sessions.get(key);
-      log.sets.push({
+      const set = {
         reps: Number(r[col('reps')]) || 0,
         weight: r[col('weight')] === '' || r[col('weight')] == null ? null : Number(r[col('weight')]),
         note: r[col('note')] || '',
-      });
+      };
+      // Optional columns (absent in pre-v1.14 CSVs → col() returns -1).
+      const warmRaw = col('warmup') >= 0 ? String(r[col('warmup')] || '').trim().toLowerCase() : '';
+      const isWarm = warmRaw === '1' || warmRaw === 'true' || warmRaw === 'yes';
+      if (isWarm) set.warmup = true;
+      const dropsRaw = col('drops') >= 0 ? String(r[col('drops')] || '').trim() : '';
+      if (dropsRaw && !isWarm) {
+        const drops = dropsRaw.split('|').map(tok => {
+          const parts = tok.split('x');            // "60x6" → wt 60, reps 6 · "x8" → bodyweight, reps 8
+          const w = (parts[0] || '').trim();
+          const rp = (parts[1] || '').trim();
+          return { reps: Number(rp) || 0, weight: w === '' ? null : Number(w) };
+        }).filter(d => d.reps > 0);
+        if (drops.length) set.drops = drops;
+      }
+      log.sets.push(set);
     });
     sessions.forEach(s => newLogs.push(s));
   }
@@ -9703,7 +9725,10 @@ function renderCardioProfileUI(containerId, levels) {
     });
   });
   cont.querySelector('[data-cp-add]').addEventListener('click', () => {
-    levels.push({ start: '', incline: '', speed: '' });
+    // Carry over the last level's incline/speed (blanks stay blank) so a
+    // constant-speed run just needs a new start time; start is always fresh.
+    const last = levels[levels.length - 1] || {};
+    levels.push({ start: '', incline: String(last.incline || '').trim(), speed: String(last.speed || '').trim() });
     renderCardioProfileUI(containerId, levels);
   });
 }
@@ -9724,6 +9749,19 @@ function validateCardioProfileInputs(containerId, levels) {
     check('start', 0, 600, false);
     check('incline', 0, 30, true);
     check('speed', 0, 60, true);
+    // A non-first level that has data must declare a real start minute — don't
+    // let a blank/unparseable start silently fall back to 0 and collide with
+    // the first level (which is locked at 0).
+    if (i > 0) {
+      const hasData = String(lv.incline || '').trim() !== '' || String(lv.speed || '').trim() !== '';
+      const startRaw = String(lv.start || '').trim();
+      const startVal = parseNumberInput(startRaw, { allowDecimal: false });
+      if (hasData && (startRaw === '' || startVal == null || startVal < 1)) {
+        const inp = cont.querySelector(`input[data-i="${i}"][data-f="start"]`);
+        if (inp) inp.classList.add('field-invalid');
+        ok = false;
+      }
+    }
   });
   return ok;
 }
@@ -10791,6 +10829,7 @@ function openCardioEditModal(id) {
   $('#cardioEditDistanceUnit').value = log.distanceUnit || 'km';
   $('#cardioEditAvgHr').value = log.avgHr != null ? log.avgHr : '';
   $('#cardioEditMaxHr').value = log.maxHr != null ? log.maxHr : '';
+  $('#cardioEditCalories').value = log.calories != null ? log.calories : '';
   // Show machine row if the activity is machine-based OR the entry has data
   const showMachine = (a && a.machine) || log.speed != null || log.incline != null || (Array.isArray(log.profile) && log.profile.length > 0);
   $('#cardioEditMachineRow').style.display = showMachine ? 'block' : 'none';
@@ -10835,6 +10874,8 @@ function saveCardioEdit() {
   if ($('#cardioEditAvgHr').value.trim() !== '' && avgHr == null) hasError = true;
   const maxHr = validateNumberField('cardioEditMaxHr', 'Max HR', { min: 30, max: 250, allowDecimal: false });
   if ($('#cardioEditMaxHr').value.trim() !== '' && maxHr == null) hasError = true;
+  const calories = validateNumberField('cardioEditCalories', 'Calories', { min: 0, max: 5000, allowDecimal: false });
+  if ($('#cardioEditCalories').value.trim() !== '' && calories == null) hasError = true;
   if (!validateCardioProfileInputs('cardioEditProfile', cardioEditProfileLevels)) hasError = true;
 
   const z = {};
@@ -10864,6 +10905,7 @@ function saveCardioEdit() {
   log.distanceUnit = $('#cardioEditDistanceUnit').value;
   log.avgHr = avgHr;
   log.maxHr = maxHr;
+  log.calories = calories;
   log.speed = editSummary.speed;
   log.incline = editSummary.incline;
   if (editProfile.length) log.profile = editProfile;
@@ -13441,6 +13483,24 @@ async function init() {
     header.addEventListener('keydown', e => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
     });
+  });
+
+  // Select-all on focus for value fields, so you can overtype (e.g. change a
+  // weight) without clearing first. Skips date pickers, notes, and search
+  // boxes where you usually want to append rather than replace. iOS ignores
+  // .select() on programmatic focus, so we use setSelectionRange in a timeout.
+  document.addEventListener('focusin', e => {
+    const el = e.target;
+    if (!el || el.tagName !== 'INPUT') return;       // textareas (notes, paste) excluded by tag
+    if (el.readOnly || el.disabled) return;          // e.g. the locked profile start + datepickers
+    if (el.classList.contains('datepicker-input') || el.classList.contains('search-input')) return;
+    if (el.type === 'search' || el.type === 'checkbox' || el.type === 'radio' || el.type === 'file') return;
+    if (el.dataset && el.dataset.f === 'note') return;               // per-set note inputs
+    if (el.id && /note|search/i.test(el.id)) return;                 // cardioNote, *Search, etc.
+    setTimeout(() => {
+      try { el.setSelectionRange(0, (el.value || '').length); }
+      catch (_) { try { el.select(); } catch (__) {} }              // type=number throws → fall back
+    }, 0);
   });
 
   // Refresh export preview when user lands on Settings tab
