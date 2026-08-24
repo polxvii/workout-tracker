@@ -9721,7 +9721,7 @@ function renderCardioProfileUI(containerId, levels) {
   if (levels.length) levels[0].start = '0';   // first level always starts at minute 0
   cont.innerHTML = `
     <div style="display:grid; grid-template-columns:1fr 1fr 1fr 34px; gap:6px; margin-bottom:4px;">
-      <div style="font-size:10px; color:var(--text-faint); text-align:center;">Start (min)</div>
+      <div style="font-size:10px; color:var(--text-faint); text-align:center;">Start (m:ss)</div>
       <div style="font-size:10px; color:var(--text-faint); text-align:center;">Incline %</div>
       <div style="font-size:10px; color:var(--text-faint); text-align:center;">Speed km/h</div>
       <div></div>
@@ -9729,8 +9729,8 @@ function renderCardioProfileUI(containerId, levels) {
     ${levels.map((lv, i) => `
       <div style="display:grid; grid-template-columns:1fr 1fr 1fr 34px; gap:6px; margin-bottom:6px;">
         ${i === 0
-          ? `<input type="text" value="0" data-i="0" data-f="start" readonly aria-label="Start minute (fixed at 0)" title="The first level always starts at 0:00" style="text-align:center; color:var(--text-faint); background:var(--surface); cursor:not-allowed;">`
-          : `<input type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(String(lv.start || ''))}" data-i="${i}" data-f="start" autocomplete="off" style="text-align:center;">`}
+          ? `<input type="text" value="0:00" data-i="0" data-f="start" readonly aria-label="Start time (fixed at 0:00)" title="The first level always starts at 0:00" style="text-align:center; color:var(--text-faint); background:var(--surface); cursor:not-allowed;">`
+          : `<input type="text" inputmode="text" placeholder="0:00" value="${escapeHtml(String(lv.start || ''))}" data-i="${i}" data-f="start" autocomplete="off" style="text-align:center;">`}
         <input type="text" inputmode="decimal" placeholder="—" value="${escapeHtml(String(lv.incline || ''))}" data-i="${i}" data-f="incline" autocomplete="off" style="text-align:center;">
         <input type="text" inputmode="decimal" placeholder="—" value="${escapeHtml(String(lv.speed || ''))}" data-i="${i}" data-f="speed" autocomplete="off" style="text-align:center;">
         <button type="button" class="btn-remove" data-cp-remove="${i}" aria-label="Remove level"${levels.length <= 1 ? ' style="visibility:hidden;"' : ''}>×</button>
@@ -9774,18 +9774,22 @@ function validateCardioProfileInputs(containerId, levels) {
       const v = parseNumberInput(raw, { allowDecimal: dec });
       if (v == null || v < min || v > max) fail(i, f, m);
     };
-    check('start', 0, 600, false, 'Start must be a whole number of minutes (0–600).');
+    // Start accepts m:ss (e.g. 5:30) or a plain number of minutes.
+    const startRaw = String(lv.start || '').trim();
+    if (startRaw !== '') {
+      const sv = parseTimeInput(startRaw);
+      if (sv == null || sv < 0 || sv > 600) fail(i, 'start', 'Start must be a time like 5:30 (or minutes), 0 to 600.');
+    }
     check('incline', 0, 30, true, 'Incline must be a number from 0 to 30 (%).');
     check('speed', 0, 60, true, 'Speed must be a number from 0 to 60 (km/h).');
-    // A non-first level that has data must declare a real start minute — don't
+    // A non-first level that has data must declare a real start time — don't
     // let a blank/unparseable start silently fall back to 0 and collide with
-    // the first level (which is locked at 0).
+    // the first level (which is locked at 0:00).
     if (i > 0) {
       const hasData = String(lv.incline || '').trim() !== '' || String(lv.speed || '').trim() !== '';
-      const startRaw = String(lv.start || '').trim();
-      const startVal = parseNumberInput(startRaw, { allowDecimal: false });
-      if (hasData && (startRaw === '' || startVal == null || startVal < 1)) {
-        fail(i, 'start', `Level ${i + 1}: fill in the start minute (when this incline/speed began).`);
+      const sv = parseTimeInput(startRaw);
+      if (hasData && (startRaw === '' || sv == null || sv <= 0)) {
+        fail(i, 'start', `Level ${i + 1}: fill in the start time (when this incline/speed began).`);
       }
     }
   });
@@ -9809,13 +9813,21 @@ function buildCardioProfile(levels) {
     const spd = String(lv.speed || '').trim();
     if (inc === '' && spd === '') continue;
     out.push({
-      start:   parseNumberInput(String(lv.start || '0').trim(), { allowDecimal: false }) || 0,
+      start:   parseTimeInput(String(lv.start || '0').trim()) || 0,   // accepts m:ss or minutes
       incline: inc === '' ? null : parseNumberInput(inc, { allowDecimal: true }),
       speed:   spd === '' ? null : parseNumberInput(spd, { allowDecimal: true }),
     });
   }
   out.sort((a, b) => a.start - b.start);
   return out;
+}
+// Format a stored start (minutes, maybe fractional) back for display: whole
+// minutes stay plain ("5"), fractional show as m:ss ("5:30").
+function fmtStartMin(m) {
+  if (m == null) return '';
+  if (Number.isInteger(m)) return String(m);
+  const s = Math.round(m * 60);
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
 // Single representative values for Progress / CSV / History: incline = max
 // reached, speed = average of the levels that recorded a speed.
@@ -9831,7 +9843,7 @@ function deriveCardioSummary(profile) {
 function cardioLogToProfileLevels(log) {
   if (log && Array.isArray(log.profile) && log.profile.length) {
     return log.profile.map(p => ({
-      start:   p.start == null ? '' : String(p.start),
+      start:   p.start == null ? '' : fmtStartMin(p.start),
       incline: p.incline == null ? '' : String(p.incline),
       speed:   p.speed == null ? '' : String(p.speed),
     }));
@@ -10707,7 +10719,7 @@ function _renderCardioEntryCardImpl(l) {
         ${l.calories ? `<div class="set-chip">🔥 <strong>${l.calories}</strong> kcal</div>` : ''}
       </div>` : ''}
       ${(Array.isArray(l.profile) && l.profile.length > 1) ? `<div class="log-sets" style="margin-top:6px;">
-        ${l.profile.map(p => `<div class="set-chip">${p.start}m:${p.incline != null ? ` <strong>${p.incline}</strong>%` : ''}${p.incline != null && p.speed != null ? ' ·' : ''}${p.speed != null ? ` <strong>${p.speed}</strong>km/h` : ''}</div>`).join('')}
+        ${l.profile.map(p => `<div class="set-chip"><span style="color:var(--text-faint)">@${fmtStartMin(p.start)}</span>${p.incline != null ? ` <strong>${p.incline}</strong>%` : ''}${p.incline != null && p.speed != null ? ' ·' : ''}${p.speed != null ? ` <strong>${p.speed}</strong>km/h` : ''}</div>`).join('')}
       </div>`
       : (l.speed != null || l.incline != null) ? `<div class="log-sets" style="margin-top:6px;">
         ${l.speed != null ? `<div class="set-chip">Speed: <strong>${l.speed}</strong> km/h</div>` : ''}
