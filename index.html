@@ -1742,13 +1742,17 @@ select {
             </div>
             <div id="cardioReviewBanner" style="display:none; margin-bottom:12px; padding:10px 12px; background:rgba(16,185,129,0.1); border:1px solid var(--success); border-radius:6px; font-size:12px; color:var(--success);">
               ✓ <strong>Review the fields below</strong> — anything missing or wrong, just type over it. Then tap Save.
-              <div style="margin-top:8px;">
-                <button type="button" id="cardioShowOcrBtn" style="background:transparent; border:1px solid var(--success); color:var(--success); padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer; font-family:inherit;">Show raw OCR text</button>
-              </div>
-              <pre id="cardioOcrDebugText" style="display:none; margin-top:8px; padding:8px; background:var(--surface-2); border-radius:4px; color:var(--text); font-size:11px; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-word;"></pre>
             </div>
 
             <button type="button" class="btn btn-secondary" id="cardioFormOcrBtn" style="width:100%; margin-bottom:12px;">📷 Fill remaining from screenshot</button>
+
+            <!-- Raw OCR text viewer — standalone so BOTH the OCR-first flow and the
+                 "fill remaining" merge flow (which hides the green review banner) can
+                 show what Tesseract actually read, for cross-checking mis-mapped fields. -->
+            <div id="cardioOcrDebugWrap" style="display:none; margin-bottom:12px;">
+              <button type="button" id="cardioShowOcrBtn" style="background:transparent; border:1px solid var(--border); color:var(--text-dim); padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer; font-family:inherit;">Show raw OCR text</button>
+              <pre id="cardioOcrDebugText" style="display:none; margin-top:8px; padding:8px; background:var(--surface-2); border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:11px; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-word;"></pre>
+            </div>
 
             <div class="form-row">
               <div>
@@ -9747,6 +9751,7 @@ function renderCardioActivityGrid() {
         if (todays.length) {
           loadCardioLogIntoForm(todays[todays.length - 1], a);
           $('#cardioReviewBanner').style.display = 'none';
+          $('#cardioOcrDebugWrap').style.display = 'none';
           showCardioStage('form');
           setTimeout(() => $('#cardioFormSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
           return;
@@ -9963,7 +9968,10 @@ function clearCardioForm() {
   $('#cardioOcrSection').style.display = 'none';
   $('#cardioFormSection').style.display = 'none';
   $('#cardioReviewBanner').style.display = 'none';
-  // Clear OCR status so it doesn't linger from previous session
+  // Clear OCR status + stored raw text so nothing lingers from a previous session
+  $('#cardioOcrDebugWrap').style.display = 'none';
+  const cp = $('#cardioPaste'); if (cp) cp.value = '';
+  const cdt = $('#cardioOcrDebugText'); if (cdt) { cdt.textContent = ''; cdt.style.display = 'none'; }
   const ocrStatus = $('#cardioOcrStatus');
   const ocrPreview = $('#cardioOcrPreview');
   if (ocrStatus) ocrStatus.style.display = 'none';
@@ -10625,6 +10633,16 @@ async function runOcrOnScreenshots(files, mergeMode) {
     $('#cardioPaste').value = combined;
     textEl.textContent = combined;
     preview.style.display = 'block';
+
+    // Keep the raw OCR text viewable on the form itself (collapsed by default).
+    // The merge flow hides the green review banner, so this standalone viewer is
+    // the only way to eyeball what Tesseract read when a field maps wrong.
+    const dbgPre = $('#cardioOcrDebugText');
+    const dbgBtn = $('#cardioShowOcrBtn');
+    const dbgWrap = $('#cardioOcrDebugWrap');
+    if (dbgPre) { dbgPre.textContent = ''; dbgPre.style.display = 'none'; }
+    if (dbgBtn) dbgBtn.textContent = 'Show raw OCR text';
+    if (dbgWrap) dbgWrap.style.display = 'block';
 
     textMain.textContent = `✓ Done — read ${totalChars} chars from ${N} image${N === 1 ? '' : 's'}`;
     textSub.textContent  = 'Parsing fields and moving to review…';
@@ -13821,6 +13839,7 @@ async function init() {
     $('#cardioInputs').style.display = 'none';
     $('#cardioMachineRow').style.display = 'none';
     $('#cardioReviewBanner').style.display = 'none';
+    $('#cardioOcrDebugWrap').style.display = 'none';
     clearAllFieldErrors($('#cardioFormSection'));
     renderCardioActivityGrid();
   });
@@ -13852,6 +13871,7 @@ async function init() {
   });
   $('#cardioMethodManualBtn').addEventListener('click', () => {
     $('#cardioReviewBanner').style.display = 'none';   // no banner for manual
+    $('#cardioOcrDebugWrap').style.display = 'none';
     showCardioStage('form');
     setTimeout(() => $('#cardioFormSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   });
