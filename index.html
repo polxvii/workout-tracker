@@ -6528,15 +6528,19 @@ function getE1RMTrend(exerciseId) {
 function sparklineSVG(vals, w, h) {
   if (!vals || vals.length < 2) return '';
   const min = Math.min(...vals), max = Math.max(...vals), range = (max - min) || 1, pad = 3, n = vals.length;
-  const pts = vals.map((v, i) => {
-    const x = (i * (w - pad * 2) / (n - 1)) + pad;
-    const y = h - pad - ((v - min) / range) * (h - pad * 2);
-    return x.toFixed(1) + ',' + y.toFixed(1);
-  });
-  const last = pts[pts.length - 1].split(',');
+  const xy = vals.map((v, i) => [
+    (i * (w - pad * 2) / (n - 1)) + pad,
+    h - pad - ((v - min) / range) * (h - pad * 2)
+  ]);
+  const poly = xy.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  // A small dot on every session so you can see where each of the points sits;
+  // the latest point is a touch bigger to stand out as "where you are now".
+  const dots = xy.map((p, i) =>
+    `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i === xy.length - 1 ? 2 : 1.5}" fill="var(--primary)"/>`
+  ).join('');
   return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="flex:none; overflow:visible;" aria-hidden="true">`
-    + `<polyline points="${pts.join(' ')}" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`
-    + `<circle cx="${last[0]}" cy="${last[1]}" r="2" fill="var(--primary)"/></svg>`;
+    + `<polyline points="${poly}" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`
+    + dots + `</svg>`;
 }
 
 // ============================================================
