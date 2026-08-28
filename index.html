@@ -9813,6 +9813,26 @@ function mergeCardioParseIntoForm() {
   if (profileHadData) { cardioProfileLevels = profileBefore; renderCardioProfileUI('cardioProfile', cardioProfileLevels); }
 }
 
+// Start is stored as fractional minutes (lv.start, e.g. "5.5") but entered as
+// two numpad fields — minutes and seconds — because iOS's number pad has no
+// colon. These convert between the two representations.
+function startToMinSec(startStr) {
+  const t = parseTimeInput(startStr);            // fractional minutes, or null
+  if (t == null) return { min: '', sec: '' };
+  const total = Math.round(t * 60);              // whole seconds
+  const sec = total % 60;
+  return { min: String(Math.floor(total / 60)), sec: sec === 0 ? '' : String(sec) };
+}
+function recombineStartFromRow(levels, i, cont) {
+  const minEl = cont.querySelector(`input[data-i="${i}"][data-f="startMin"]`);
+  const secEl = cont.querySelector(`input[data-i="${i}"][data-f="startSec"]`);
+  if (!minEl || !secEl) return;
+  const mRaw = minEl.value.trim(), sRaw = secEl.value.trim();
+  if (mRaw === '' && sRaw === '') { levels[i].start = ''; return; }
+  const m = parseFloat(mRaw), s = parseFloat(sRaw);
+  levels[i].start = String((isFinite(m) ? m : 0) + (isFinite(s) ? s : 0) / 60);
+}
+
 function renderCardioProfileUI(containerId, levels) {
   const cont = document.getElementById(containerId);
   if (!cont) return;
@@ -9824,18 +9844,50 @@ function renderCardioProfileUI(containerId, levels) {
       <div style="font-size:10px; color:var(--text-faint); text-align:center;">Speed km/h</div>
       <div></div>
     </div>
-    ${levels.map((lv, i) => `
+    ${levels.map((lv, i) => {
+      const ms = i === 0 ? null : startToMinSec(lv.start);
+      const startCell = i === 0
+        ? `<input type="text" value="0:00" data-i="0" data-f="start" readonly aria-label="Start time (fixed at 0:00)" title="The first level always starts at 0:00" style="text-align:center; color:var(--text-faint); background:var(--surface); cursor:not-allowed;">`
+        : `<div style="display:flex; align-items:center; gap:2px;">
+             <input type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(ms.min)}" data-i="${i}" data-f="startMin" autocomplete="off" aria-label="Start minutes" style="text-align:center; padding:8px 2px; flex:1; min-width:0;">
+             <span style="color:var(--text-faint); font-size:12px;">:</span>
+             <input type="text" inputmode="numeric" placeholder="00" value="${escapeHtml(ms.sec)}" data-i="${i}" data-f="startSec" autocomplete="off" aria-label="Start seconds" style="text-align:center; padding:8px 2px; flex:1; min-width:0;">
+           </div>`;
+      return `
       <div style="display:grid; grid-template-columns:1fr 1fr 1fr 34px; gap:6px; margin-bottom:6px;">
-        ${i === 0
-          ? `<input type="text" value="0:00" data-i="0" data-f="start" readonly aria-label="Start time (fixed at 0:00)" title="The first level always starts at 0:00" style="text-align:center; color:var(--text-faint); background:var(--surface); cursor:not-allowed;">`
-          : `<input type="text" inputmode="text" placeholder="0:00" value="${escapeHtml(String(lv.start || ''))}" data-i="${i}" data-f="start" autocomplete="off" style="text-align:center;">`}
+        ${startCell}
         <input type="text" inputmode="decimal" placeholder="—" value="${escapeHtml(String(lv.incline || ''))}" data-i="${i}" data-f="incline" autocomplete="off" style="text-align:center;">
         <input type="text" inputmode="decimal" placeholder="—" value="${escapeHtml(String(lv.speed || ''))}" data-i="${i}" data-f="speed" autocomplete="off" style="text-align:center;">
         <button type="button" class="btn-remove" data-cp-remove="${i}" aria-label="Remove level"${levels.length <= 1 ? ' style="visibility:hidden;"' : ''}>×</button>
-      </div>`).join('')}
+      </div>`;
+    }).join('')}
     <button type="button" data-cp-add="1" style="background:none; border:1px dashed var(--border); border-radius:var(--radius-sm); color:var(--text-dim); font-family:inherit; font-size:12px; cursor:pointer; padding:6px 10px;">+ Add level</button>`;
   cont.querySelectorAll('input[data-f]:not([readonly])').forEach(inp => {
-    inp.addEventListener('input', e => { levels[+e.target.dataset.i][e.target.dataset.f] = e.target.value; });
+    const f = inp.dataset.f;
+    if (f === 'startMin' || f === 'startSec') return;   // start = two fields, handled below
+    inp.addEventListener('input', e => { levels[+e.target.dataset.i][f] = e.target.value; });
+  });
+  // Start is two numpad fields (min : sec). Recombine into the canonical
+  // fractional-minute lv.start on every keystroke; on blur of the minutes box a
+  // decimal (e.g. 5.5) splits into 5 : 30.
+  cont.querySelectorAll('input[data-f="startMin"], input[data-f="startSec"]').forEach(inp => {
+    inp.addEventListener('input', e => recombineStartFromRow(levels, +e.target.dataset.i, cont));
+  });
+  cont.querySelectorAll('input[data-f="startMin"]').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const i = +e.target.dataset.i;
+      if (e.target.value.indexOf('.') !== -1) {
+        const t = parseFloat(e.target.value);
+        if (isFinite(t)) {
+          const total = Math.round(t * 60);
+          const minEl = cont.querySelector(`input[data-i="${i}"][data-f="startMin"]`);
+          const secEl = cont.querySelector(`input[data-i="${i}"][data-f="startSec"]`);
+          if (minEl) minEl.value = String(Math.floor(total / 60));
+          if (secEl) secEl.value = (total % 60) === 0 ? '' : String(total % 60);
+        }
+      }
+      recombineStartFromRow(levels, i, cont);
+    });
   });
   cont.querySelectorAll('[data-cp-remove]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -9856,13 +9908,13 @@ function validateCardioProfileInputs(containerId, levels) {
   if (!cont) return true;
   let ok = true, msg = '';
   const fail = (i, f, m) => {
-    const inp = cont.querySelector(`input[data-i="${i}"][data-f="${f}"]`);
-    if (inp) inp.classList.add('field-invalid');
+    const fields = (f === 'start') ? ['startMin', 'startSec'] : [f];   // start is two inputs
+    fields.forEach(ff => { const inp = cont.querySelector(`input[data-i="${i}"][data-f="${ff}"]`); if (inp) inp.classList.add('field-invalid'); });
     if (!msg) msg = m;   // keep the first, most specific message
     ok = false;
   };
   levels.forEach((lv, i) => {
-    ['start', 'incline', 'speed'].forEach(f => {
+    ['start', 'startMin', 'startSec', 'incline', 'speed'].forEach(f => {
       const inp = cont.querySelector(`input[data-i="${i}"][data-f="${f}"]`);
       if (inp) inp.classList.remove('field-invalid');
     });
@@ -9876,7 +9928,15 @@ function validateCardioProfileInputs(containerId, levels) {
     const startRaw = String(lv.start || '').trim();
     if (startRaw !== '') {
       const sv = parseTimeInput(startRaw);
-      if (sv == null || sv < 0 || sv > 600) fail(i, 'start', 'Start must be a time like 5:30 (or minutes), 0 to 600.');
+      if (sv == null || sv < 0 || sv > 600) fail(i, 'start', 'Start time must be between 0:00 and 600:00.');
+    }
+    // Seconds box is a whole 0–59 (use the minutes box for anything bigger).
+    if (i > 0) {
+      const secEl = cont.querySelector(`input[data-i="${i}"][data-f="startSec"]`);
+      if (secEl && secEl.value.trim() !== '') {
+        const sec2 = parseNumberInput(secEl.value.trim(), { allowDecimal: false });
+        if (sec2 == null || sec2 < 0 || sec2 > 59) fail(i, 'start', 'Seconds must be a whole number from 0 to 59.');
+      }
     }
     check('incline', 0, 30, true, 'Incline must be a number from 0 to 30 (%).');
     check('speed', 0, 60, true, 'Speed must be a number from 0 to 60 (km/h).');
