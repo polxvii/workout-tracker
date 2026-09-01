@@ -9849,7 +9849,7 @@ function renderCardioProfileUI(containerId, levels) {
       const startCell = i === 0
         ? `<input type="text" value="0:00" data-i="0" data-f="start" readonly aria-label="Start time (fixed at 0:00)" title="The first level always starts at 0:00" style="text-align:center; color:var(--text-faint); background:var(--surface); cursor:not-allowed;">`
         : `<div style="display:flex; align-items:center; gap:2px;">
-             <input type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(ms.min)}" data-i="${i}" data-f="startMin" autocomplete="off" aria-label="Start minutes" style="text-align:center; padding:8px 2px; flex:1; min-width:0;">
+             <input type="text" inputmode="decimal" placeholder="0" value="${escapeHtml(ms.min)}" data-i="${i}" data-f="startMin" autocomplete="off" aria-label="Start minutes (a decimal like 5.5 splits into 5:30)" style="text-align:center; padding:8px 2px; flex:1; min-width:0;">
              <span style="color:var(--text-faint); font-size:12px;">:</span>
              <input type="text" inputmode="numeric" placeholder="00" value="${escapeHtml(ms.sec)}" data-i="${i}" data-f="startSec" autocomplete="off" aria-label="Start seconds" style="text-align:center; padding:8px 2px; flex:1; min-width:0;">
            </div>`;
