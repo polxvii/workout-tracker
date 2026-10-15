@@ -13,7 +13,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Workout Tracker</title>
-<meta name="app-version" content="1.15">
+<meta name="app-version" content="1.16">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
@@ -1396,7 +1396,7 @@ select {
         Your data is private. Only you can access it.
       </div>
       <div style="text-align:center; font-size:10px; color:var(--text-faint); margin-top:6px; opacity:0.7;">
-        v1.15
+        v1.16
       </div>
     </div>
   </div>
@@ -1426,7 +1426,7 @@ select {
     </div>
     <div style="display:flex; gap:8px;">
       <button id="clearCancelBtn" type="button" class="btn btn-secondary" style="flex:1;">Cancel</button>
-      <button id="clearConfirmBtn" type="button" class="btn btn-danger" style="flex:1;" disabled>Delete everything</button>
+      <button id="clearConfirmBtn" type="button" class="btn btn-danger" style="flex:1;" disabled>Delete all logs</button>
     </div>
   </div>
 </div>
@@ -2069,7 +2069,7 @@ select {
 
     <!-- VERSION FOOTER -->
     <div style="text-align:center; padding:16px 0; font-size:11px; color:var(--text-faint);">
-      Workout Tracker v1.15
+      Workout Tracker v1.16
     </div>
 
   </section>
@@ -12917,10 +12917,13 @@ async function syncToRemote() {
       if (error) throw error;
     }
     if (toDelete.length) {
+      // Scoped to log types as well as ids, so a sync can never delete another
+      // app's rows (the nutrition app shares this table) even on an id clash.
       const { error } = await sb
         .from('workouts')
         .delete()
         .eq('user_id', currentUser.id)
+        .in('type', ['strength', 'cardio'])
         .in('id', toDelete);
       if (error) throw error;
     }
@@ -13707,7 +13710,8 @@ async function init() {
     $('#clearSummary').innerHTML =
       `This will permanently delete:<br>` +
       `&nbsp;&nbsp;• <strong>${strengthCount}</strong> strength workout${strengthCount === 1 ? '' : 's'}<br>` +
-      `&nbsp;&nbsp;• <strong>${cardioCount}</strong> cardio session${cardioCount === 1 ? '' : 's'}`;
+      `&nbsp;&nbsp;• <strong>${cardioCount}</strong> cardio session${cardioCount === 1 ? '' : 's'}<br>` +
+      `<span style="color:var(--text-dim); font-size:13px;">Custom exercises, custom activities and playlists are kept.</span>`;
     $('#clearConfirmInput').value = '';
     $('#clearConfirmBtn').disabled = true;
     $('#clearModal').style.display = 'flex';
@@ -13728,13 +13732,19 @@ async function init() {
     $('#clearConfirmBtn').disabled = true;
     $('#clearConfirmBtn').textContent = 'Deleting…';
     try {
-      // Wipe on Supabase (RLS ensures only this user's rows are touched;
-      // we also pass user_id explicitly as a second safety layer).
+      // Wipe this app's workout LOGS on Supabase — never every row. The same
+      // table also holds custom exercises/activities + playlists (kept), and the
+      // separate nutrition app's 'nutrition' / 'nutrition_targets' rows under the
+      // same user_id, which must never be touched from here. RLS limits it to
+      // this user; user_id + type are passed explicitly as extra safety layers.
       if (sb && currentUser) {
-        const { error } = await sb.from('workouts').delete().eq('user_id', currentUser.id);
+        const { error } = await sb.from('workouts').delete()
+          .eq('user_id', currentUser.id)
+          .in('type', ['strength', 'cardio']);
         if (error) throw error;
       }
       state.logs = [];
+      lastSyncedIds = new Set();   // nothing left to sync-delete
       saveStateLocal();
       $('#clearModal').style.display = 'none';
       populateProgressExercises();
@@ -13745,7 +13755,7 @@ async function init() {
       console.error(e);
       showToast('Could not clear: ' + (e.message || e), 'error');
     } finally {
-      $('#clearConfirmBtn').textContent = 'Delete everything';
+      $('#clearConfirmBtn').textContent = 'Delete all logs';
       $('#clearConfirmBtn').disabled = false;
     }
   });
