@@ -1410,28 +1410,6 @@ select {
 </div>
 
 <!-- ============================================================
-     CLEAR-ALL CONFIRM MODAL — 2-layer destructive confirm.
-     Replaces native confirm() for the "Clear all logs" action.
-     ============================================================ -->
-<div id="clearModal" style="display:none; position:fixed; inset:0; z-index:9500; background:rgba(0,0,0,0.7); align-items:center; justify-content:center; padding:20px;">
-  <div style="width:100%; max-width:380px; background:var(--surface); border-radius:12px; padding:20px; max-height:90vh; overflow-y:auto;">
-    <div style="font-size:18px; font-weight:700; color:#ff6060; margin-bottom:12px;">⚠️ Delete all workouts?</div>
-    <div id="clearSummary" style="font-size:14px; line-height:1.6; margin-bottom:16px; color:var(--text);"></div>
-    <div style="background:rgba(255,80,80,0.08); border:1px solid rgba(255,80,80,0.25); border-radius:8px; padding:10px 12px; margin-bottom:16px; font-size:13px; color:#ffaaaa;">
-      This <strong>cannot be undone</strong>. It will affect all your devices.
-    </div>
-    <div class="form-group">
-      <label for="clearConfirmInput" style="font-size:13px;">To confirm, type <strong style="color:#ff6060;">DELETE</strong> below:</label>
-      <input id="clearConfirmInput" type="text" placeholder="Type DELETE" autocapitalize="characters" autocomplete="off">
-    </div>
-    <div style="display:flex; gap:8px;">
-      <button id="clearCancelBtn" type="button" class="btn btn-secondary" style="flex:1;">Cancel</button>
-      <button id="clearConfirmBtn" type="button" class="btn btn-danger" style="flex:1;" disabled>Delete all logs</button>
-    </div>
-  </div>
-</div>
-
-<!-- ============================================================
      MIGRATION PROMPT — first sign-in, offer to upload local data
      ============================================================ -->
 <div id="migrateModal" style="display:none; position:fixed; inset:0; z-index:9500; background:rgba(0,0,0,0.7); align-items:center; justify-content:center; padding:20px;">
@@ -2059,13 +2037,9 @@ select {
       </div>
     </div>
 
-    <!-- DESTRUCTIVE -->
-    <div class="card collapsible" data-collapse-key="danger">
-      <div class="card-title collapse-header">Danger zone</div>
-      <div class="collapse-body">
-      <button class="btn btn-danger" id="clearBtn">🗑 Clear all logs</button>
-      </div>
-    </div>
+    <!-- No bulk "clear all logs" action on purpose (removed v1.16 part 2): one
+         tap could wipe months of history on every device. Delete single entries
+         from Log / History; a full reset, if ever needed, is done in Supabase. -->
 
     <!-- VERSION FOOTER -->
     <div style="text-align:center; padding:16px 0; font-size:11px; color:var(--text-faint);">
@@ -12819,9 +12793,9 @@ function nutritionTargetsToRow(t) {
   };
 }
 
-// Nutrition moved to a separate app in v1.13. This app no longer writes
-// type='nutrition' / 'nutrition_targets' rows to Supabase, so the two apps
-// don't double-own the same rows. Kept as a no-op so existing callers in the
+// Nutrition moved to a separate app in v1.13 (it has its own database). This
+// app no longer writes type='nutrition' / 'nutrition_targets' rows; any it wrote
+// in v1.10–v1.12 are left untouched in `workouts`. Kept as a no-op so callers in the
 // (now hidden) nutrition UI don't break. The nutritionLogToRow /
 // nutritionTargetsToRow helpers are left intact for reference.
 async function syncNutritionToRemote() {
@@ -12917,8 +12891,9 @@ async function syncToRemote() {
       if (error) throw error;
     }
     if (toDelete.length) {
-      // Scoped to log types as well as ids, so a sync can never delete another
-      // app's rows (the nutrition app shares this table) even on an id clash.
+      // Scoped to log types as well as ids, so a sync can only ever delete
+      // workout logs — never custom definitions, playlists, or the legacy
+      // nutrition rows this table still holds — even on an id clash.
       const { error } = await sb
         .from('workouts')
         .delete()
@@ -13697,67 +13672,6 @@ async function init() {
   $('#importFile').addEventListener('change', e => {
     if (e.target.files[0]) importData(e.target.files[0]);
     e.target.value = '';
-  });
-
-  // Data — Clear (2-layer destructive confirm via modal)
-  $('#clearBtn').addEventListener('click', () => {
-    const strengthCount = state.logs.filter(l => l.type !== 'cardio').length;
-    const cardioCount = state.logs.filter(l => l.type === 'cardio').length;
-    if (strengthCount === 0 && cardioCount === 0) {
-      showToast('Nothing to delete');
-      return;
-    }
-    $('#clearSummary').innerHTML =
-      `This will permanently delete:<br>` +
-      `&nbsp;&nbsp;• <strong>${strengthCount}</strong> strength workout${strengthCount === 1 ? '' : 's'}<br>` +
-      `&nbsp;&nbsp;• <strong>${cardioCount}</strong> cardio session${cardioCount === 1 ? '' : 's'}<br>` +
-      `<span style="color:var(--text-dim); font-size:13px;">Custom exercises, custom activities and playlists are kept.</span>`;
-    $('#clearConfirmInput').value = '';
-    $('#clearConfirmBtn').disabled = true;
-    $('#clearModal').style.display = 'flex';
-    setTimeout(() => $('#clearConfirmInput').focus(), 50);
-  });
-
-  $('#clearConfirmInput').addEventListener('input', e => {
-    $('#clearConfirmBtn').disabled = e.target.value !== 'DELETE';
-  });
-  $('#clearCancelBtn').addEventListener('click', () => {
-    $('#clearModal').style.display = 'none';
-  });
-  $('#clearModal').addEventListener('click', e => {
-    if (e.target.id === 'clearModal') $('#clearModal').style.display = 'none';
-  });
-  $('#clearConfirmBtn').addEventListener('click', async () => {
-    if ($('#clearConfirmInput').value !== 'DELETE') return;
-    $('#clearConfirmBtn').disabled = true;
-    $('#clearConfirmBtn').textContent = 'Deleting…';
-    try {
-      // Wipe this app's workout LOGS on Supabase — never every row. The same
-      // table also holds custom exercises/activities + playlists (kept), and the
-      // separate nutrition app's 'nutrition' / 'nutrition_targets' rows under the
-      // same user_id, which must never be touched from here. RLS limits it to
-      // this user; user_id + type are passed explicitly as extra safety layers.
-      if (sb && currentUser) {
-        const { error } = await sb.from('workouts').delete()
-          .eq('user_id', currentUser.id)
-          .in('type', ['strength', 'cardio']);
-        if (error) throw error;
-      }
-      state.logs = [];
-      lastSyncedIds = new Set();   // nothing left to sync-delete
-      saveStateLocal();
-      $('#clearModal').style.display = 'none';
-      populateProgressExercises();
-      showToast('All logs cleared');
-      if (strengthSubview === 'history') renderHistory();
-      if (cardioSubview === 'history') renderCardioHistory();
-    } catch (e) {
-      console.error(e);
-      showToast('Could not clear: ' + (e.message || e), 'error');
-    } finally {
-      $('#clearConfirmBtn').textContent = 'Delete all logs';
-      $('#clearConfirmBtn').disabled = false;
-    }
   });
 
   // Collapsible Settings sections — keeps the page tidy as it grows. Each
